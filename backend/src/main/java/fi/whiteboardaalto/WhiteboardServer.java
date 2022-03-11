@@ -1,17 +1,18 @@
 package fi.whiteboardaalto;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import com.google.common.hash.HashCode;
+import com.google.common.hash.HashFunction;
+import com.google.common.hash.Hashing;
+import fi.whiteboardaalto.messages.Message;
 import fi.whiteboardaalto.messages.MessageType;
 import fi.whiteboardaalto.messages.SuperMessage;
-import fi.whiteboardaalto.messages.client.action.CreateObject;
+import fi.whiteboardaalto.messages.client.object.CreateObject;
 import fi.whiteboardaalto.messages.client.session.CreateMeeting;
-import fi.whiteboardaalto.messages.client.session.JoinMeeting;
-import fi.whiteboardaalto.messages.client.session.LeaveMeeting;
-import fi.whiteboardaalto.messages.server.ack.MeetingCreated;
-import fi.whiteboardaalto.messages.server.ack.MeetingJoined;
-import fi.whiteboardaalto.messages.server.ack.MeetingLeft;
-import fi.whiteboardaalto.messages.server.errors.NonExistentMeeting;
-import fi.whiteboardaalto.messages.server.errors.WrongFormatError;
+import fi.whiteboardaalto.messages.server.ack.object.ObjectCreated;
+import fi.whiteboardaalto.messages.server.ack.session.MeetingCreated;
+import fi.whiteboardaalto.messages.server.errors.BusyCoordinatesError;
+import fi.whiteboardaalto.messages.server.errors.ServerFullError;
+import fi.whiteboardaalto.objects.StickyNote;
 import org.java_websocket.WebSocket;
 import org.java_websocket.handshake.ClientHandshake;
 import org.java_websocket.server.WebSocketServer;
@@ -22,6 +23,7 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.NetworkInterface;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 
 public class WhiteboardServer extends WebSocketServer {
@@ -49,82 +51,60 @@ public class WhiteboardServer extends WebSocketServer {
     @Override
     public void onClose(WebSocket conn, int i, String s, boolean b) {
         conns.remove(conn);
-        System.out.println(toString());
         // Remove the user (to code)
         System.out.println("Closed connection to " + conn.getRemoteSocketAddress().getAddress().getHostAddress() + ":" + conn.getRemoteSocketAddress().getPort());
     }
 
     @Override
     public void onMessage(WebSocket conn, String message) {
-        try {
-            SuperMessage msg = mapper.readValue(message, SuperMessage.class);
-            System.out.println("Message type is: " + msg.getType() + " and message payload is: " + msg.getObject());
-            String messageString = msg.getObject().toString();
-            // For each case of the switch, errors still need to be considered and handled through exceptions
-            switch (msg.getType()) {
-                case CREATE_MEETING:
-                    CreateMeeting createMeeting = mapper.readValue(messageString, CreateMeeting.class);
-                    users.put(conn, new User(idGenerator(IdType.USER_ID), createMeeting.getPseudo()));
-                    // Preparing meeting creation message
-                    MeetingCreated meetingCreated = new MeetingCreated(createMeeting.getMessageId()+1, idGenerator(IdType.MEETING_ID), users.get(conn).getUserId());
-                    Meeting meeting = new Meeting(meetingCreated.getMeetingId(), users.get(conn));
-                    meeting.setHost(users.get(conn));
+        SuperMessage superMessage = superMessageDeserialize(message);
+        switch(superMessage.getMessageType()) {
+            case CREATE_OBJECT:
+                System.out.println("[*] CREATE_OBJECT request received!");
+                User existingUser = users.get(conn);
+                if(existingUser == null) {
+                    System.err.println("[*] Error: User doesn't exist.");
+                    break;
+                }
+                CreateObject createObject = (CreateObject) superMessage.getMessage();
+                switch(createObject.getObjectType()) {
+                    case STICKY_NOTE:
+                        StickyNote stickyNote = (StickyNote) createObject.getBoardObject();
+                        // Need to define custom exception: if meeting null?
+                        Meeting meeting = findMeetingByUserId(existingUser.getUserId());
+                        if(meeting == null) {System.err.println("[*] Error: User is not in any meeting."); break;}
+                        int messageIdAck = createObject.getMessageId()+1;
+                        if(!meeting.getWhiteboard().coordinatesAreBusy(stickyNote)) {
+                            String serializedStickyNote = objectSerialize(stickyNote);
+                            String sha256hash = generateSha256Hash(serializedStickyNote);
+                            meeting.getWhiteboard().getBoardObjects().add(stickyNote);
+                            ObjectCreated objectCreated = new ObjectCreated(messageIdAck, sha256hash);
+                            System.out.println("[*] StickyNote created and added to meeting " + meeting.getMeetingId());
+                            sendMessage(conn, objectCreated, MessageType.OBJECT_CREATED);
+                        } else { sendMessage(conn, new BusyCoordinatesError(messageIdAck), MessageType.OBJECT_CREATED); }
+                        break;
+                    case IMAGE:
+                        break;
+                }
+                break;
+            case CREATE_MEETING:
+                System.out.println("[*] CREATE_MEETING request received!");
+                CreateMeeting createMeeting = (CreateMeeting) superMessage.getMessage();
+                int messageIdAck = createMeeting.getMessageId()+1;
+                if(meetings.size() <= 5) {
+                    // 1st step: create new user, who will be the host of the meeting, and add it to server
+                    User host = new User(idGenerator(IdType.USER_ID), createMeeting.getPseudo());
+                    users.put(conn, host);
+                    // 2nd step: create new meeting and add it to the server's hosted meetings
+                    Meeting meeting = new Meeting(idGenerator(IdType.MEETING_ID), host);
                     meetings.add(meeting);
-                    // Sending confirmation for meeting creation
+                    System.out.println("[*] New meeting created: " + meeting.getMeetingId());
+                    // 3rd step: send back to the host a confirmation message
+                    MeetingCreated meetingCreated = new MeetingCreated(messageIdAck, meeting.getMeetingId(), host.getUserId());
                     sendMessage(conn, meetingCreated, MessageType.MEETING_CREATED);
-                    // For debug purposes
-                    System.out.println(toString());
-                    break;
-                case LEAVE_MEETING:
-                    LeaveMeeting leaveMeeting = mapper.readValue(messageString, LeaveMeeting.class);
-                    Meeting meetingToFind = findMeeting(leaveMeeting.getMeetingId());
-                    String pseudo = users.get(conn).getPseudo();
-                    MeetingLeft meetingLeft = new MeetingLeft(leaveMeeting.getMessageId()+1, meetingToFind.getMeetingId(), pseudo);
-                    meetingToFind.getUsers().remove(users.get(conn));
-                    sendMessage(conn, meetingLeft, MessageType.MEETING_LEFT);
-                    System.out.println(pseudo + " has left meeting " + meetingToFind.getMeetingId() + ".");
-                    conn.close();
-                    break;
-                case JOIN_MEETING:
-                    JoinMeeting joinMeeting = mapper.readValue(messageString, JoinMeeting.class);
-                    Meeting meetingToJoin = findMeeting(joinMeeting.getMeetingId());
-                    if (meetingToJoin != null) {
-                        System.out.println("Someone wants to join the following meeting: " + meetingToJoin.getMeetingId());
-                        User newUser = new User(idGenerator(IdType.USER_ID), joinMeeting.getPseudo());
-                        // Adding the user to the current list of users
-                        users.put(conn, newUser);
-                        MeetingJoined meetingJoined = new MeetingJoined(joinMeeting.getMessageId()+1, meetingToJoin.getMeetingId(), newUser.getUserId());
-                        // Adding the new player
-                        meetingToJoin.getUsers().add(newUser);
-                        sendMessage(conn, meetingJoined, MessageType.MEETING_JOINED);
-                        // For debug purposes
-                        System.out.println(toString());
-                    } else {
-                        NonExistentMeeting error = new NonExistentMeeting(0x202, "This meeting doesn't exist");
-                        sendMessage(conn, error, MessageType.NON_EXISTING_MEETING_ERROR);
-                        System.out.println("Non existent meeting exception sent.");
-                    }
-                    break;
-                case CREATE_OBJECT:
-                    CreateObject createObject = mapper.readValue(messageString, CreateObject.class);
-
-                    break;
-            }
-        } catch (JsonProcessingException e) {
-            System.out.println("Wrong message format: " + e);
-            WrongFormatError error = new WrongFormatError(0x201, "Message malformed.");
-            sendMessage(conn, error, MessageType.WRONG_FORMAT_ERROR);
+                } else { ServerFullError error = new ServerFullError(messageIdAck); }
+                break;
         }
-
-        /*
-        try {
-            Message msg = mapper.readValue(message, Message.class);
-            String type = msg.getType();
-            System.out.println("Message received of type: " + type);
-        } catch (JsonProcessingException e) {
-            System.out.println("Wrong message format: " + e);
-        }
-         */
     }
 
     @Override
@@ -154,19 +134,42 @@ public class WhiteboardServer extends WebSocketServer {
         System.out.println("Starting the server...");
     }
 
-    /**
-     * This method broadcasts a message to all the connected users.
-     * @param msg
-     */
-    private void broadcastMessage(SuperMessage msg) {
+    private void broadcastMessage(Message message) {
         ObjectMapper mapper = new ObjectMapper();
         try {
-            String messageJson = mapper.writeValueAsString(msg);
+            String messageJson = mapper.writeValueAsString(message);
             for (WebSocket sock : conns) {
                 sock.send(messageJson);
             }
         } catch (JsonProcessingException e) {
             System.err.println("Cannot convert message to json.");
+        }
+    }
+
+    private void sendMessage(WebSocket conn, Object object, MessageType type) {
+        try {
+            SuperMessage superMessage = new SuperMessage(type, (Message) object);
+            conn.send(mapper.writeValueAsString(superMessage));
+        } catch (JsonProcessingException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private String objectSerialize(Object object) {
+        try {
+            return mapper.writeValueAsString(object);
+        } catch (JsonProcessingException e) {
+            e.printStackTrace();
+            return null;
+        }
+    }
+
+    private SuperMessage superMessageDeserialize(String object) {
+        try {
+            return mapper.readValue(object, SuperMessage.class);
+        } catch (JsonProcessingException e) {
+            e.printStackTrace();
+            return null;
         }
     }
 
@@ -192,13 +195,19 @@ public class WhiteboardServer extends WebSocketServer {
         return id;
     }
 
+    private String generateSha256Hash(String serializedObject) {
+        HashFunction hashFunction = Hashing.sha256();
+        HashCode hash = hashFunction.hashString(serializedObject, StandardCharsets.UTF_8);
+        return hash.toString();
+    }
+
     /**
      * This method goes through all the meetings hosted by the server and returns a reference on the meeting
-     * object for which the meeting ID is the same than the one provided in the parameters.s
+     * object for which the meeting ID is the same as the one provided in the parameters.
      * @param meetingId
      * @return meeting: a reference on the found meeting; null if nothing was found.
      */
-    private Meeting findMeeting(String meetingId) {
+    private Meeting findMeetingByMeetingId(String meetingId) {
         for (Meeting meeting : meetings) {
             if(meeting.getMeetingId().equals(meetingId)) {
                 return meeting;
@@ -208,22 +217,20 @@ public class WhiteboardServer extends WebSocketServer {
     }
 
     /**
-     * This method is called when a JSON message needs to be sent over a WebSocket to a client.
-     * @param conn
-     * @param object
+     * This method goes through all the meetings hosted by the servers and returns a reference on the meeting
+     * object in which a user with the same userId exists.
+     * @param userId
+     * @return meeting: a reference on the found meeting; null if nothing was found.
      */
-    private void sendMessage(WebSocket conn, Object object, MessageType type) {
-        try {
-            JsonNode node = mapper.readTree(mapper.writeValueAsString(object));
-            SuperMessage msg = new SuperMessage(type, node);
-            conn.send(mapper.writeValueAsString(msg));
-
-            if(object.getClass() == NonExistentMeeting.class) {
-                conn.close();
+    private Meeting findMeetingByUserId(String userId) {
+        for (Meeting meeting : meetings) {
+            for(User user : meeting.getUsers()) {
+                if(user.getUserId().equals(userId)) {
+                    return meeting;
+                }
             }
-        } catch (JsonProcessingException ex) {
-            ex.printStackTrace();
         }
+        return null;
     }
 
 

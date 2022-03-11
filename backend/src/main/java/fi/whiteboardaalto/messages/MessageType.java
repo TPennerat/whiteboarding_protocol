@@ -21,5 +21,7 @@ public enum MessageType {
     MEETING_CREATED,
     // Error message
     WRONG_FORMAT_ERROR,
-    NON_EXISTING_MEETING_ERROR
+    NON_EXISTING_MEETING_ERROR,
+    // ACK MESSAGES
+    OBJECT_CREATED
 }
