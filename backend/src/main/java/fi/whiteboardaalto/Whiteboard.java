@@ -28,4 +28,14 @@ public class Whiteboard {
         }
         return false;
     }
+
+    public BoardObject getBoardObjectByObjectId (String objectId) {
+        for (BoardObject boardObject : boardObjects) {
+            if(boardObject.getObjectId() == objectId) {
+                return boardObject;
+            }
+        }
+        return null;
+    }
+
 }

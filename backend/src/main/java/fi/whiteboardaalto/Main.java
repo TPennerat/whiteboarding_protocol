@@ -6,7 +6,10 @@ import com.fasterxml.jackson.databind.ObjectReader;
 import fi.whiteboardaalto.messages.MessageType;
 import fi.whiteboardaalto.messages.SuperMessage;
 import fi.whiteboardaalto.messages.client.object.CreateObject;
+import fi.whiteboardaalto.messages.client.object.DeleteObject;
+import fi.whiteboardaalto.messages.client.object.SelectObject;
 import fi.whiteboardaalto.messages.client.session.CreateMeeting;
+import fi.whiteboardaalto.messages.client.session.JoinMeeting;
 import fi.whiteboardaalto.messages.server.ack.object.ObjectCreated;
 import fi.whiteboardaalto.objects.*;
 import org.apache.log4j.BasicConfigurator;
@@ -35,7 +38,7 @@ public class Main {
         ObjectMapper mapper = new ObjectMapper();
 
         BoardObject boardObject = new StickyNote(
-                456789,
+                "oufbuofb",
                 "abcdefgh",
                 true,
                 new Coordinates(
@@ -60,14 +63,34 @@ public class Main {
         CreateObject createObject = new CreateObject(
                 123456,
                 "abcdefgh",
-                45678,
+                "fnoznf",
                 ObjectType.STICKY_NOTE,
                 boardObject
         );
 
+        JoinMeeting joinMeeting = new JoinMeeting(
+                123456,
+                "",
+                "dEiufboprzbE",
+                "Lewdroth"
+        );
+
         ObjectCreated objectCreated = new ObjectCreated(
                 123456,
+                "biuvuzb",
                 "testchecksum_sha256_nojuzrbgibjovbéoagbouéb"
+        );
+
+        SelectObject selectObject = new SelectObject(
+                123456,
+                "abcdefgh",
+                "jfrojfbz"
+        );
+
+        DeleteObject deleteObject = new DeleteObject(
+                123456,
+                "abcdefgh",
+                "nforboejr"
         );
 
         /*
@@ -91,7 +114,7 @@ public class Main {
 
 
 
-        SuperMessage superMessage = new SuperMessage(MessageType.CREATE_OBJECT, createObject);
+        SuperMessage superMessage = new SuperMessage(MessageType.DELETE, deleteObject);
         try {
             String serializedObject = superMessageSerialize(mapper, superMessage);
             System.out.println(serializedObject);
@@ -104,9 +127,9 @@ public class Main {
     }
 
     public static void main(String[] args) {
-        testFunction();
+        // testFunction();
 
-        //BasicConfigurator.configure();
-        //new WhiteboardServer(4444).start();
+        BasicConfigurator.configure();
+        new WhiteboardServer(4444).start();
     }
 }

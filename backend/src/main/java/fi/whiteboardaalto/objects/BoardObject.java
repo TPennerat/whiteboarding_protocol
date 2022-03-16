@@ -3,23 +3,20 @@ package fi.whiteboardaalto.objects;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.google.common.hash.HashCode;
-import com.google.common.hash.HashFunction;
-import com.google.common.hash.Hashing;
 
-import java.nio.charset.StandardCharsets;
+import java.util.Objects;
 
 public class BoardObject {
 
     @JsonIgnore
-    protected int objectId;
+    protected String objectId;
     protected String ownerId;
     protected Boolean isLocked;
     protected Coordinates coordinates;
     protected Colour colour;
 
     @JsonCreator
-    public BoardObject(@JsonProperty("objectId") int objectId, @JsonProperty("ownerId") String ownerId, @JsonProperty("isLocked") Boolean isLocked, @JsonProperty("coordinates") Coordinates coordinates, @JsonProperty("colour") Colour colour) {
+    public BoardObject(@JsonProperty("objectId") String objectId, @JsonProperty("ownerId") String ownerId, @JsonProperty("isLocked") Boolean isLocked, @JsonProperty("coordinates") Coordinates coordinates, @JsonProperty("colour") Colour colour) {
         this.objectId = objectId;
         this.ownerId = ownerId;
         this.isLocked = isLocked;
@@ -27,7 +24,20 @@ public class BoardObject {
         this.colour = colour;
     }
 
-    public int getObjectId() {
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        BoardObject that = (BoardObject) o;
+        return objectId == that.objectId;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(objectId);
+    }
+
+    public String getObjectId() {
         return objectId;
     }
 
@@ -47,7 +57,7 @@ public class BoardObject {
         return colour;
     }
 
-    public void setObjectId(int objectId) {
+    public void setObjectId(String objectId) {
         this.objectId = objectId;
     }
 
@@ -55,7 +65,7 @@ public class BoardObject {
         this.ownerId = ownerId;
     }
 
-    public void setLocked(Boolean locked) {
+    public void setIsLocked(Boolean locked) {
         isLocked = locked;
     }
 

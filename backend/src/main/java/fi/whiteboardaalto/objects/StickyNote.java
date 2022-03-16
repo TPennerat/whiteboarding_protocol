@@ -9,7 +9,7 @@ public class StickyNote extends BoardObject {
     private Coordinates size;
 
     @JsonCreator
-    public StickyNote(@JsonProperty("objectId") int objectId, @JsonProperty("ownerId") String ownerId, @JsonProperty("isLocked") Boolean isLocked, @JsonProperty("coordinates") Coordinates coordinates, @JsonProperty("clour") Colour colour, @JsonProperty("text") String text, @JsonProperty("font") String font, @JsonProperty("size") Coordinates size) {
+    public StickyNote(@JsonProperty("objectId") String objectId, @JsonProperty("ownerId") String ownerId, @JsonProperty("isLocked") Boolean isLocked, @JsonProperty("coordinates") Coordinates coordinates, @JsonProperty("clour") Colour colour, @JsonProperty("text") String text, @JsonProperty("font") String font, @JsonProperty("size") Coordinates size) {
         super(objectId, ownerId, isLocked, coordinates, colour);
         this.text = text;
         this.font = font;

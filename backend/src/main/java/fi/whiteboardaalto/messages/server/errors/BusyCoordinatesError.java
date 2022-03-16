@@ -6,6 +6,6 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 public class BusyCoordinatesError extends Error {
     @JsonCreator
     public BusyCoordinatesError(@JsonProperty("messageId") int messageId) {
-        super(messageId, 201, "The chosen coordinates are already in use.");
+        super(messageId, 202, "The chosen coordinates are already in use.");
     }
 }

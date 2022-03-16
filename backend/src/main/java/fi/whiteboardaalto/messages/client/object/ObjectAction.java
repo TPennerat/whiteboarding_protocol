@@ -4,18 +4,18 @@ import fi.whiteboardaalto.messages.client.ActionMessage;
 
 public class ObjectAction extends ActionMessage {
 
-    private int objectId;
+    private String objectId;
 
-    public ObjectAction(int messageId, String userId, int objectId) {
+    public ObjectAction(int messageId, String userId, String objectId) {
         super(messageId, userId);
         this.objectId = objectId;
     }
 
-    public int getObjectId() {
+    public String getObjectId() {
         return objectId;
     }
 
-    public void setObjectId(int objectId) {
+    public void setObjectId(String objectId) {
         this.objectId = objectId;
     }
 

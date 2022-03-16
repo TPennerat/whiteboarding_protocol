@@ -14,7 +14,7 @@ public class CreateObject extends ObjectAction {
     private ObjectType objectType;
 
     @JsonCreator
-    public CreateObject(@JsonProperty("messageId") int messageId, @JsonProperty("userId") String userId, @JsonProperty("objectId") int objectId, @JsonProperty("objectType") ObjectType objectType, @JsonProperty("boardObject") BoardObject boardObject) {
+    public CreateObject(@JsonProperty("messageId") int messageId, @JsonProperty("userId") String userId, @JsonProperty("objectId") String objectId, @JsonProperty("objectType") ObjectType objectType, @JsonProperty("boardObject") BoardObject boardObject) {
         super(messageId, userId, objectId);
         this.boardObject = boardObject;
         this.objectType = objectType;

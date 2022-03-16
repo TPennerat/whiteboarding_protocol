@@ -1,6 +1,7 @@
 package fi.whiteboardaalto;
 
 import java.util.HashSet;
+import java.util.Random;
 import java.util.Set;
 
 public class Meeting {
@@ -46,6 +47,29 @@ public class Meeting {
 
     public void setWhiteboard(Whiteboard whiteboard) {
         this.whiteboard = whiteboard;
+    }
+
+    public boolean pseudoAlreadyExists(String testPseudo) {
+        for (User user : users) {
+            if(user.getPseudo().equals(testPseudo)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public void transferHost() {
+        int size = users.size();
+        int item = new Random().nextInt(size);
+        int i = 0;
+        User newHost = null;
+        for(User user : users)
+        {
+            if (i == item)
+                newHost = user;
+            i++;
+        }
+        setHost(newHost);
     }
 
 }
