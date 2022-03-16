@@ -1,13 +1,12 @@
 package fi.whiteboardaalto.messages.server.ack.object;
 
 import fi.whiteboardaalto.messages.server.Answer;
-import fi.whiteboardaalto.messages.server.AnswerType;
 
 public class ObjectAck extends Answer {
     private String checksum;
 
-    public ObjectAck(int messageId, AnswerType answerType, int code, String checksum) {
-        super(messageId, answerType, code);
+    public ObjectAck(int messageId, int code, String checksum) {
+        super(messageId, code);
         this.checksum = checksum;
     }
 

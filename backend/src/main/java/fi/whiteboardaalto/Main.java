@@ -2,10 +2,12 @@ package fi.whiteboardaalto;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectReader;
 import fi.whiteboardaalto.messages.MessageType;
 import fi.whiteboardaalto.messages.SuperMessage;
 import fi.whiteboardaalto.messages.client.object.CreateObject;
 import fi.whiteboardaalto.messages.client.session.CreateMeeting;
+import fi.whiteboardaalto.messages.server.ack.object.ObjectCreated;
 import fi.whiteboardaalto.objects.*;
 import org.apache.log4j.BasicConfigurator;
 
@@ -63,18 +65,33 @@ public class Main {
                 boardObject
         );
 
+        ObjectCreated objectCreated = new ObjectCreated(
+                123456,
+                "testchecksum_sha256_nojuzrbgibjovbéoagbouéb"
+        );
+
+        /*
         try {
-            String serial = mapper.writeValueAsString(createObject);
-            SuperMessage superMessage = new SuperMessage(MessageType.CREATE_OBJECT, createObject);
+            // Serializing object
+            String serial = mapper.writeValueAsString(objectCreated);
+            SuperMessage superMessage = new SuperMessage(MessageType.OBJECT_CREATED, objectCreated);
             String serial2 = mapper.writeValueAsString(superMessage);
             System.out.println(serial2);
+            // Re-creating object
+            SuperMessage superMessage2 = mapper.readValue(serial2, SuperMessage.class);
+            System.out.println(superMessage2.getMessageType());
+                // Additional test
+            ObjectCreated testAfterDeserial = (ObjectCreated) superMessage2.getMessage();
+            System.out.println(testAfterDeserial.getChecksum());
         } catch (JsonProcessingException e) {
             e.printStackTrace();
         }
 
+         */
 
-        /*
-        SuperMessage superMessage = new SuperMessage(MessageType.CREATE_MEETING, createMeeting);
+
+
+        SuperMessage superMessage = new SuperMessage(MessageType.CREATE_OBJECT, createObject);
         try {
             String serializedObject = superMessageSerialize(mapper, superMessage);
             System.out.println(serializedObject);
@@ -83,13 +100,13 @@ public class Main {
         } catch (JsonProcessingException e) {
             e.printStackTrace();
         }
-        */
+
     }
 
     public static void main(String[] args) {
-        //testFunction();
+        testFunction();
 
-        BasicConfigurator.configure();
-        new WhiteboardServer(4444).start();
+        //BasicConfigurator.configure();
+        //new WhiteboardServer(4444).start();
     }
 }

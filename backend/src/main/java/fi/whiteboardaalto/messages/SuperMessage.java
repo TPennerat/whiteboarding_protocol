@@ -7,6 +7,7 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo;
 
 import fi.whiteboardaalto.messages.client.object.CreateObject;
 import fi.whiteboardaalto.messages.client.session.CreateMeeting;
+import fi.whiteboardaalto.messages.server.ack.object.ObjectCreated;
 
 public class SuperMessage {
     private MessageType messageType;
@@ -32,8 +33,11 @@ public class SuperMessage {
 
     @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, include = JsonTypeInfo.As.EXTERNAL_PROPERTY, property = "messageType")
     @JsonSubTypes(value = {
+            // Client messages
             @JsonSubTypes.Type(value = CreateObject.class, name = "CREATE_OBJECT"),
-            @JsonSubTypes.Type(value = CreateMeeting.class, name = "CREATE_MEETING")
+            @JsonSubTypes.Type(value = CreateMeeting.class, name = "CREATE_MEETING"),
+            // Server messages
+            @JsonSubTypes.Type(value = ObjectCreated.class, name = "OBJECT_CREATED"),
     })
     public void setMessage(Message message) {
         this.message = message;
