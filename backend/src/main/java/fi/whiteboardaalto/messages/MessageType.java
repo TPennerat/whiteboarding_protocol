@@ -5,6 +5,7 @@ public enum MessageType {
     // Object-related messages
     CREATE_OBJECT,
     SELECT,
+    UNSELECT,
     DELETE,
     // Session-related messages
     JOIN_MEETING,
@@ -15,6 +16,9 @@ public enum MessageType {
     INVITE_USER,
 
     // SERVER MESSAGES
+    // Update messages
+    CHANGE_BROADCAST,
+    USER_BROADCAST,
     // Session-related message
     MEETING_LEFT,
     MEETING_JOINED,
@@ -27,11 +31,14 @@ public enum MessageType {
     BUSY_OBJECT_ERROR,
     NON_EXISTENT_MEETING_ERROR,
     BUSY_PSEUDO_ERROR,
-    MESSAGE_MALFORMED,
+    MESSAGE_MALFORMED_ERROR,
     ALREADY_IN_MEETING_ERROR,
     MEETING_ALREADY_CREATED_ERROR,
+    OBJECT_NOT_OWNED_ERROR,
+    OBJECT_NOT_SELECTED_ERROR,
     // ACK MESSAGES
     OBJECT_CREATED,
     OBJECT_SELECTED,
-    OBJECT_DELETED
+    OBJECT_DELETED,
+    OBJECT_UNSELECTED
 }

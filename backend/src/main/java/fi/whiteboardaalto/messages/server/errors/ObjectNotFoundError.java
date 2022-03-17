@@ -5,7 +5,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 
 public class ObjectNotFoundError extends Error {
     @JsonCreator
-    public ObjectNotFoundError(@JsonProperty int messageId) {
+    public ObjectNotFoundError(@JsonProperty("messageId") int messageId) {
         super(messageId, 204, "Object not found.");
     }
 }
