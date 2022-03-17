@@ -1,6 +1,7 @@
 package fi.whiteboardaalto;
 
 import java.util.HashSet;
+import java.util.Random;
 import java.util.Set;
 
 public class Meeting {
@@ -20,10 +21,6 @@ public class Meeting {
         return meetingId;
     }
 
-    public void setHost(User host) {
-        this.host = host;
-    }
-
     public Set<User> getUsers() {
         return users;
     }
@@ -31,4 +28,48 @@ public class Meeting {
     public User getHost() {
         return host;
     }
+
+    public Whiteboard getWhiteboard() {
+        return whiteboard;
+    }
+
+    public void setMeetingId(String meetingId) {
+        this.meetingId = meetingId;
+    }
+
+    public void setUsers(Set<User> users) {
+        this.users = users;
+    }
+
+    public void setHost(User host) {
+        this.host = host;
+    }
+
+    public void setWhiteboard(Whiteboard whiteboard) {
+        this.whiteboard = whiteboard;
+    }
+
+    public boolean pseudoAlreadyExists(String testPseudo) {
+        for (User user : users) {
+            if(user.getPseudo().equals(testPseudo)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public void transferHost() {
+        int size = users.size();
+        int item = new Random().nextInt(size);
+        int i = 0;
+        User newHost = null;
+        for(User user : users)
+        {
+            if (i == item)
+                newHost = user;
+            i++;
+        }
+        setHost(newHost);
+    }
+
 }
