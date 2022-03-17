@@ -10,6 +10,7 @@ import fi.whiteboardaalto.messages.client.object.DeleteObject;
 import fi.whiteboardaalto.messages.client.object.SelectObject;
 import fi.whiteboardaalto.messages.client.session.CreateMeeting;
 import fi.whiteboardaalto.messages.client.session.JoinMeeting;
+import fi.whiteboardaalto.messages.client.session.LeaveMeeting;
 import fi.whiteboardaalto.messages.server.ack.object.ObjectCreated;
 import fi.whiteboardaalto.objects.*;
 import org.apache.log4j.BasicConfigurator;
@@ -93,6 +94,12 @@ public class Main {
                 "nforboejr"
         );
 
+        LeaveMeeting leaveMeeting = new LeaveMeeting(
+                9999545,
+                "fbrziubfu",
+                "fbrzivrzyrzp"
+        );
+
         /*
         try {
             // Serializing object
@@ -114,12 +121,16 @@ public class Main {
 
 
 
-        SuperMessage superMessage = new SuperMessage(MessageType.DELETE, deleteObject);
+        SuperMessage superMessage = new SuperMessage(MessageType.LEAVE_MEETING, leaveMeeting);
         try {
             String serializedObject = superMessageSerialize(mapper, superMessage);
             System.out.println(serializedObject);
             SuperMessage superMessage2 = mapper.readValue(serializedObject, SuperMessage.class);
             System.out.println(superMessage2.getMessageType());
+
+            LeaveMeeting leaveMeeting1 = (LeaveMeeting) superMessage.getMessage();
+            System.out.println(leaveMeeting1.getMessageId());
+
         } catch (JsonProcessingException e) {
             e.printStackTrace();
         }

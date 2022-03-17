@@ -19,6 +19,7 @@ public enum MessageType {
     // Update messages
     CHANGE_BROADCAST,
     USER_BROADCAST,
+    DELETE_BROADCAST,
     // Session-related message
     MEETING_LEFT,
     MEETING_JOINED,
