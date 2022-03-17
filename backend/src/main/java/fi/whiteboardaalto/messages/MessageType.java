@@ -7,6 +7,7 @@ public enum MessageType {
     SELECT,
     UNSELECT,
     DELETE,
+    EDIT,
     // Session-related messages
     JOIN_MEETING,
     LEAVE_MEETING,

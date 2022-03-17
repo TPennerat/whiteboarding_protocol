@@ -76,7 +76,7 @@ public class Meeting {
         users.remove(newHost);
         // We set the host of the meeting as the newHost
         setHost(newHost);
-        System.out.println("The new host of the meeting is: " + newHost.getPseudo());
+        System.out.println("[*] The new host of the meeting is: " + newHost.getPseudo());
     }
 
     @Override
