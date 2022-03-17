@@ -104,13 +104,21 @@ public class WhiteboardServer extends WebSocketServer {
                         if(meeting == null) {System.err.println("[*] Error: User is not in any meeting."); break;}
                         int messageIdAck = createObject.getMessageId()+1;
                         if(!meeting.getWhiteboard().coordinatesAreBusy(stickyNote)) {
+                            String objectId = idGenerator(IdType.OBJECT_ID);
+                            // Preparing the sticky note before adding it in the objects list of the meeting
+                            stickyNote.setObjectId(objectId);
+                            stickyNote.setIsLocked(false);
+                            stickyNote.setOwnerId(existingUser.getUserId());
+                            // Adding the sticky note
+                            meeting.getWhiteboard().getBoardObjects().add(stickyNote);
+                            // Calculating hash
                             String serializedStickyNote = objectSerialize(stickyNote);
                             String sha256hash = generateSha256Hash(serializedStickyNote);
-                            meeting.getWhiteboard().getBoardObjects().add(stickyNote);
-                            ObjectCreated objectCreated = new ObjectCreated(messageIdAck, idGenerator(IdType.OBJECT_ID), sha256hash);
+                            // Sending confirmation
+                            ObjectCreated objectCreated = new ObjectCreated(messageIdAck, objectId, sha256hash);
                             System.out.println("[*] StickyNote created and added to meeting " + meeting.getMeetingId());
                             sendMessage(conn, objectCreated, MessageType.OBJECT_CREATED);
-
+                            System.out.println(toString());
                         } else { sendMessage(conn, new BusyCoordinatesError(messageIdAck), MessageType.OBJECT_CREATED); }
                         break;
                     case IMAGE:
@@ -121,32 +129,36 @@ public class WhiteboardServer extends WebSocketServer {
                 System.out.println("[*] CREATE_MEETING request received!");
                 CreateMeeting createMeeting = (CreateMeeting) superMessage.getMessage();
                 int messageIdAck = createMeeting.getMessageId()+1;
-                if(meetings.size() <= 5) {
-                    // 1st step: create new user, who will be the host of the meeting, and add it to server
-                    User host = new User(idGenerator(IdType.USER_ID), createMeeting.getPseudo());
-                    users.put(conn, host);
-                    // 2nd step: create new meeting and add it to the server's hosted meetings
-                    meeting = new Meeting(idGenerator(IdType.MEETING_ID), host);
-                    meeting.setHost(host);
-                    meetings.add(meeting);
-                    System.out.println("[*] New meeting created: " + meeting.getMeetingId());
-                    // 3rd step: send back to the host a confirmation message
-                    MeetingCreated meetingCreated = new MeetingCreated(messageIdAck, meeting.getMeetingId(), host.getUserId());
-                    sendMessage(conn, meetingCreated, MessageType.MEETING_CREATED);
-                } else { ServerFullError error = new ServerFullError(messageIdAck); }
+                if(users.get(conn) == null) {
+                    if(meetings.size()+1 <= 5) {
+                        // 1st step: create new user, who will be the host of the meeting, and add it to server
+                        User host = new User(idGenerator(IdType.USER_ID), createMeeting.getPseudo());
+                        users.put(conn, host);
+                        // 2nd step: create new meeting and add it to the server's hosted meetings
+                        meeting = new Meeting(idGenerator(IdType.MEETING_ID), host);
+                        meeting.setHost(host);
+                        meetings.add(meeting);
+                        System.out.println("[*] New meeting created: " + meeting.getMeetingId());
+                        // 3rd step: send back to the host a confirmation message
+                        MeetingCreated meetingCreated = new MeetingCreated(messageIdAck, meeting.getMeetingId(), host.getUserId());
+                        sendMessage(conn, meetingCreated, MessageType.MEETING_CREATED);
+                    } else { ServerFullError error = new ServerFullError(messageIdAck); }
+                } else sendMessage(conn, new MeetingAlreadyCreatedError(createMeeting.getMessageId()+1), MessageType.MEETING_ALREADY_CREATED_ERROR);
                 break;
             case JOIN_MEETING:
                 JoinMeeting joinMeeting = (JoinMeeting) superMessage.getMessage();
                 meeting = findMeetingByMeetingId(joinMeeting.getMeetingId());
                 if(meeting != null) {
-                    if(!meeting.pseudoAlreadyExists(joinMeeting.getPseudo())) {
-                        User newUser = new User(idGenerator(IdType.USER_ID), joinMeeting.getPseudo());
-                        meeting.getUsers().add(newUser);
-                        users.put(conn, newUser);
-                        MeetingJoined meetingJoined = new MeetingJoined(joinMeeting.getMessageId()+1, meeting.getMeetingId(), newUser.getUserId());
-                        sendMessage(conn, meetingJoined, MessageType.MEETING_JOINED);
-                        System.out.println(toString());
-                    } else sendMessage(conn, new BusyPseudoError(joinMeeting.getMessageId()+1), MessageType.BUSY_PSEUDO_ERROR);
+                    if(users.get(conn) == null) { // If this is not null, it means this connection has already created a user
+                        if(!meeting.pseudoAlreadyExists(joinMeeting.getPseudo())) {
+                            User newUser = new User(idGenerator(IdType.USER_ID), joinMeeting.getPseudo());
+                            meeting.getUsers().add(newUser);
+                            users.put(conn, newUser);
+                            MeetingJoined meetingJoined = new MeetingJoined(joinMeeting.getMessageId()+1, meeting.getMeetingId(), newUser.getUserId());
+                            sendMessage(conn, meetingJoined, MessageType.MEETING_JOINED);
+                            System.out.println(toString());
+                        } else sendMessage(conn, new BusyPseudoError(joinMeeting.getMessageId()+1), MessageType.BUSY_PSEUDO_ERROR);
+                    } else sendMessage(conn, new AlreadyInMeetingError(joinMeeting.getMessageId()+1), MessageType.ALREADY_IN_MEETING_ERROR);
                 } else sendMessage(conn, new NonExistentMeetingError(joinMeeting.getMessageId()+1), MessageType.NON_EXISTENT_MEETING_ERROR);
                 break;
             case SELECT:
@@ -183,6 +195,7 @@ public class WhiteboardServer extends WebSocketServer {
                         meeting.getWhiteboard().getBoardObjects().remove(boardObject);
                         ObjectDeleted objectDeleted = new ObjectDeleted(deleteObject.getMessageId()+1, checksum);
                         sendMessage(conn, objectDeleted, MessageType.OBJECT_DELETED);
+                        System.out.println(toString());
                     } else sendMessage(conn, new BusyObjectError(deleteObject.getMessageId()+1), MessageType.BUSY_OBJECT_ERROR);
                 } else sendMessage(conn, new ObjectNotFoundError(deleteObject.getMessageId()+1), MessageType.OBJECT_NOT_FOUND_ERROR);
                 break;
@@ -209,8 +222,12 @@ public class WhiteboardServer extends WebSocketServer {
             }
             toString.append("- Current objects:").append(System.lineSeparator());
             for (BoardObject boardObject : meeting.getWhiteboard().getBoardObjects()) {
-                toString.append("> ").append(boardObject.getClass().getSimpleName()).append(", ID: ").append(boardObject.getObjectId());
-                toString.append(System.lineSeparator());
+                toString.append("> ")
+                        .append(boardObject.getClass().getSimpleName())
+                        .append(", ID: ").append(boardObject.getObjectId())
+                        .append(", locked: ").append(boardObject.getIsLocked())
+                        .append(", owner ID: ").append(boardObject.getOwnerId())
+                        .append(System.lineSeparator());
             }
 
         }

@@ -1,5 +1,7 @@
 package fi.whiteboardaalto;
 
+import fi.whiteboardaalto.objects.BoardObject;
+
 import java.util.HashSet;
 import java.util.Random;
 import java.util.Set;
@@ -70,6 +72,18 @@ public class Meeting {
             i++;
         }
         setHost(newHost);
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder toString;
+        toString = new StringBuilder("[*] Current objects in the meeting ").append(this.meetingId).append(" :");
+        toString.append(System.lineSeparator());
+        for(BoardObject boardObject : this.getWhiteboard().getBoardObjects()) {
+            toString.append("> ").append(boardObject.getClass().getSimpleName()).append(", ID: ").append(boardObject.getObjectId());
+            toString.append(System.lineSeparator());
+        }
+        return toString.toString();
     }
 
 }
