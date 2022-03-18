@@ -1,5 +1,4 @@
 import keymage from "keymage";
-import { io } from "socket.io-client";
 import whiteboard from "./whiteboard";
 import keybinds from "./keybinds";
 import Picker from "vanilla-picker";
@@ -7,90 +6,102 @@ import { dom } from "@fortawesome/fontawesome-svg-core";
 import shortcutFunctions from "./shortcutFunctions";
 import ReadOnlyService from "./services/ReadOnlyService";
 import InfoService from "./services/InfoService";
-import { getSubDir } from "./utils";
 import ConfigService from "./services/ConfigService";
-import { v4 as uuidv4 } from "uuid";
+import MessageType from "./messageType";
+import StringifyHelper from "./services/StringifyHelper";
+import MessageHelper from "./services/MessageHelper";
 
 const pdfjsLib = require("pdfjs-dist");
 
 const urlParams = new URLSearchParams(window.location.search);
-let whiteboardId = urlParams.get("whiteboardid");
-const randomid = urlParams.get("randomid");
+let meetingId = urlParams.get("meetingId");
 
-if (randomid) {
-  whiteboardId = uuidv4();
-  urlParams.delete("randomid");
-  window.location.search = urlParams;
-}
+// TODO à voir si thibaut peut handle le encode uri pour soucis de sécu
+// meetingId = unescape(encodeURIComponent(meetingId)).replace(
+//   /[^a-zA-Z0-9\-]/g,
+//   ""
+// );
 
-if (!whiteboardId) {
-  whiteboardId = "myNewWhiteboard";
-}
-
-whiteboardId = unescape(encodeURIComponent(whiteboardId)).replace(
-  /[^a-zA-Z0-9\-]/g,
-  ""
-);
-
-if (urlParams.get("whiteboardid") !== whiteboardId) {
-  urlParams.set("whiteboardid", whiteboardId);
-  window.location.search = urlParams;
-}
-
-const myUsername =
-  urlParams.get("username") || "unknown" + (Math.random() + "").substring(2, 6);
-const accessToken = urlParams.get("accesstoken") || "";
-const copyfromwid = urlParams.get("copyfromwid") || "";
-
-// Custom Html Title
-const title = urlParams.get("title");
-if (title) {
-  document.title = decodeURIComponent(title);
-}
-
-const subdir = getSubDir();
-let signaling_socket;
+document.title = "tat.io";
+let socketjs = null;
+let ackWaitingIDs = [];
+let userId = null;
 
 function main() {
-  signaling_socket = io("", { path: subdir + "/ws-api" }); // Connect even if we are in a subdir behind a reverse proxy
+  socketjs = new WebSocket("ws://localhost:4444");
 
-  signaling_socket.on("connect", function () {
+  socketjs.addEventListener("open", function (event) {
     console.log("Websocket connected!");
+    localStorage.setItem("pseudo", "tp");
+    let meetingRequest;
+    let userWantsToJoin = false;
+    if (userWantsToJoin) {
+      let meetingByUser = "inpututil";
+      meetingRequest = StringifyHelper.stringify(MessageType.JOIN_MEETING, {
+        messageId: MessageHelper.generateId(),
+        meetingId: meetingByUser,
+        pseudo: localStorage.getItem("pseudo"),
+      });
+      meetingId = meetingByUser;
+    } else {
+      meetingRequest = StringifyHelper.stringify(MessageType.CREATE_MEETING, {
+        messageId: MessageHelper.generateId(),
+        pseudo: localStorage.getItem("pseudo"),
+      });
+    }
+    socketjs.send(meetingRequest);
+  });
 
-    signaling_socket.on("whiteboardConfig", (serverResponse) => {
+  socketjs.addEventListener("message", function (event) {
+    const response = JSON.parse(event.data);
+    console.log("Réponse serveur:\n", response);
+    switch (response.messageType) {
+      case MessageType.MEETING_CREATED:
+        userId = response.message.userId;
+        meetingId = response.message.meetingId;
+        initWhiteboard();
+        break;
+      default:
+        showBasicAlert("???");
+    }
+  });
+
+  /*socket.on("something", function () {
+
+
+    socket.on("whiteboardConfig", (serverResponse) => {
       ConfigService.initFromServer(serverResponse);
       // Inti whiteboard only when we have the config from the server
       initWhiteboard();
     });
 
-    signaling_socket.on("whiteboardInfoUpdate", (info) => {
+    socket.on("whiteboardInfoUpdate", (info) => {
       InfoService.updateInfoFromServer(info);
       whiteboard.updateSmallestScreenResolution();
     });
 
-    signaling_socket.on("drawToWhiteboard", function (content) {
+    socket.on("drawToWhiteboard", function (content) {
       whiteboard.handleEventsAndData(content, true);
       InfoService.incrementNbMessagesReceived();
     });
 
-    signaling_socket.on("refreshUserBadges", function () {
+    socket.on("refreshUserBadges", function () {
       whiteboard.refreshUserBadges();
     });
 
     let accessDenied = false;
-    signaling_socket.on("wrongAccessToken", function () {
+    socket.on("wrongAccessToken", function () {
       if (!accessDenied) {
         accessDenied = true;
         showBasicAlert("Access denied! Wrong accessToken!");
       }
     });
 
-    signaling_socket.emit("joinWhiteboard", {
+    socket.emit("joinWhiteboard", {
       wid: whiteboardId,
-      at: accessToken,
       windowWidthHeight: { w: $(window).width(), h: $(window).height() },
     });
-  });
+  });*/
 }
 
 function showBasicAlert(html, newOptions) {
@@ -149,7 +160,7 @@ function showBasicAlert(html, newOptions) {
 function initWhiteboard() {
   $(document).ready(function () {
     // by default set in readOnly mode
-    ReadOnlyService.activateReadOnlyMode();
+    // ReadOnlyService.activateReadOnlyMode();
 
     if (urlParams.get("webdav") === "true") {
       $("#uploadWebDavBtn").show();
@@ -157,22 +168,17 @@ function initWhiteboard() {
 
     whiteboard.loadWhiteboard("#whiteboardContainer", {
       //Load the whiteboard
-      whiteboardId: whiteboardId,
-      username: btoa(encodeURIComponent(myUsername)),
+      meetingId: meetingId,
+      userId: userId,
       backgroundGridUrl: "./images/" + ConfigService.backgroundGridImage,
-      sendFunction: function (content) {
-        if (ReadOnlyService.readOnlyActive) return;
-        //ADD IN LATER THROUGH CONFIG
-        // if (content.t === 'cursor') {
-        //     if (whiteboard.drawFlag) return;
-        // }
-        content["at"] = accessToken;
-        signaling_socket.emit("drawToWhiteboard", content);
+      sendFunction: function (messageType, content) {
+        socketjs.send(StringifyHelper.stringify(messageType, content));
         InfoService.incrementNbMessagesSent();
       },
     });
 
     // request whiteboard from server
+    /*socketjs.emit("loadwhite")
     $.get(subdir + "/api/loadwhiteboard", {
       wid: whiteboardId,
       at: accessToken,
@@ -188,14 +194,14 @@ function initWhiteboard() {
           whiteboard.loadData(data);
         });
       }
-    });
+    });*/
 
-    $(window).resize(function () {
+    /* $(window).resize(function () {
       signaling_socket.emit("updateScreenResolution", {
         at: accessToken,
         windowWidthHeight: { w: $(window).width(), h: $(window).height() },
       });
-    });
+    });*/
 
     /*----------------/
         Whiteboard actions

@@ -1564,7 +1564,7 @@ const whiteboard = {
     //Sends every draw to server
     var _this = this;
     content["wid"] = _this.settings.whiteboardId;
-    content["username"] = _this.settings.username;
+    content["userid"] = _this.settings.userid;
     content["drawId"] = _this.drawId;
 
     var tool = content["t"];
@@ -1658,6 +1658,10 @@ function testImage(url, callback, timeout) {
     img.src = "//!!!!/test.jpg";
     callback(false);
   }, timeout);
+}
+
+function deleteFromBuffer(objectId) {
+  this.buffer;
 }
 
 export default whiteboard;

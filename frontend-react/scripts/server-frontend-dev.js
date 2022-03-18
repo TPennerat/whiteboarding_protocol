@@ -5,7 +5,7 @@ const devServerConfig = {
     "/api": "http://localhost:3000",
     "/uploads": "http://localhost:3000",
     "/ws-api": {
-      target: "ws://localhost:3000",
+      target: "ws://localhost:4444",
       ws: true,
     },
   },
