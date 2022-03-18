@@ -30,8 +30,8 @@ public class Whiteboard {
     }
 
     public BoardObject getBoardObjectByObjectId (String objectId) {
-        for (BoardObject boardObject : boardObjects) {
-            if(boardObject.getObjectId() == objectId) {
+            for (BoardObject boardObject : boardObjects) {
+            if(boardObject.getObjectId().equals(objectId)) {
                 return boardObject;
             }
         }

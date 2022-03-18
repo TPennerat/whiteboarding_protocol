@@ -1,5 +1,7 @@
 package fi.whiteboardaalto;
 
+import fi.whiteboardaalto.objects.BoardObject;
+
 import java.util.HashSet;
 import java.util.Random;
 import java.util.Set;
@@ -66,10 +68,27 @@ public class Meeting {
         for(User user : users)
         {
             if (i == item)
+                // The new host becomes the user
                 newHost = user;
             i++;
         }
+        // We also need remove the new host from the list of "normal" users
+        users.remove(newHost);
+        // We set the host of the meeting as the newHost
         setHost(newHost);
+        System.out.println("[*] The new host of the meeting is: " + newHost.getPseudo());
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder toString;
+        toString = new StringBuilder("[*] Current objects in the meeting ").append(this.meetingId).append(" :");
+        toString.append(System.lineSeparator());
+        for(BoardObject boardObject : this.getWhiteboard().getBoardObjects()) {
+            toString.append("> ").append(boardObject.getClass().getSimpleName()).append(", ID: ").append(boardObject.getObjectId());
+            toString.append(System.lineSeparator());
+        }
+        return toString.toString();
     }
 
 }

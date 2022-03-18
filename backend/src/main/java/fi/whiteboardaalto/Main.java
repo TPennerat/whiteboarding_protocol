@@ -2,14 +2,18 @@ package fi.whiteboardaalto;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.ObjectReader;
 import fi.whiteboardaalto.messages.MessageType;
 import fi.whiteboardaalto.messages.SuperMessage;
 import fi.whiteboardaalto.messages.client.object.CreateObject;
 import fi.whiteboardaalto.messages.client.object.DeleteObject;
+import fi.whiteboardaalto.messages.client.object.EditObject;
 import fi.whiteboardaalto.messages.client.object.SelectObject;
+import fi.whiteboardaalto.messages.client.object.change.Change;
+import fi.whiteboardaalto.messages.client.object.change.EditType;
+import fi.whiteboardaalto.messages.client.object.change.PositionChange;
 import fi.whiteboardaalto.messages.client.session.CreateMeeting;
 import fi.whiteboardaalto.messages.client.session.JoinMeeting;
+import fi.whiteboardaalto.messages.client.session.LeaveMeeting;
 import fi.whiteboardaalto.messages.server.ack.object.ObjectCreated;
 import fi.whiteboardaalto.objects.*;
 import org.apache.log4j.BasicConfigurator;
@@ -37,6 +41,7 @@ public class Main {
     public static void testFunction() {
         ObjectMapper mapper = new ObjectMapper();
 
+        // Tests objects
         BoardObject boardObject = new StickyNote(
                 "oufbuofb",
                 "abcdefgh",
@@ -93,33 +98,44 @@ public class Main {
                 "nforboejr"
         );
 
-        /*
-        try {
-            // Serializing object
-            String serial = mapper.writeValueAsString(objectCreated);
-            SuperMessage superMessage = new SuperMessage(MessageType.OBJECT_CREATED, objectCreated);
-            String serial2 = mapper.writeValueAsString(superMessage);
-            System.out.println(serial2);
-            // Re-creating object
-            SuperMessage superMessage2 = mapper.readValue(serial2, SuperMessage.class);
-            System.out.println(superMessage2.getMessageType());
-                // Additional test
-            ObjectCreated testAfterDeserial = (ObjectCreated) superMessage2.getMessage();
-            System.out.println(testAfterDeserial.getChecksum());
-        } catch (JsonProcessingException e) {
-            e.printStackTrace();
-        }
+        LeaveMeeting leaveMeeting = new LeaveMeeting(
+                9999545,
+                "fbrziubfu",
+                "fbrzivrzyrzp"
+        );
 
-         */
+        PositionChange positionChange = new PositionChange(
+                123456,
+                new Coordinates(
+                        5,
+                        6
+                )
+        );
+
+        EditObject editObject = new EditObject(
+                123456,
+                "abcdefgh",
+                "cbE4",
+                EditType.POSITION_CHANGE,
+                positionChange
+        );
 
 
-
-        SuperMessage superMessage = new SuperMessage(MessageType.DELETE, deleteObject);
+        SuperMessage superMessage = new SuperMessage(MessageType.EDIT, editObject);
         try {
             String serializedObject = superMessageSerialize(mapper, superMessage);
             System.out.println(serializedObject);
             SuperMessage superMessage2 = mapper.readValue(serializedObject, SuperMessage.class);
             System.out.println(superMessage2.getMessageType());
+
+            EditObject editObject1 = (EditObject) superMessage2.getMessage();
+            switch(editObject1.getEditType()) {
+                case POSITION_CHANGE -> {
+                    PositionChange positionChange1 = (PositionChange) editObject1.getChange();
+                    System.out.println("X = " + positionChange1.getNewPosition().getX());
+                    System.out.println("Y = " + positionChange1.getNewPosition().getY());
+                }
+            }
         } catch (JsonProcessingException e) {
             e.printStackTrace();
         }
@@ -127,9 +143,9 @@ public class Main {
     }
 
     public static void main(String[] args) {
-        // testFunction();
+        testFunction();
 
-        BasicConfigurator.configure();
-        new WhiteboardServer(4444).start();
+        //BasicConfigurator.configure();
+        //new WhiteboardServer(4444).start();
     }
 }
