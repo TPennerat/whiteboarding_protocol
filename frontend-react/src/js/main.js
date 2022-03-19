@@ -28,6 +28,7 @@ let ackWaitingIDs = [];
 let userId = null;
 
 function main() {
+  initWhiteboard();
   socketjs = new WebSocket("ws://localhost:4444");
 
   socketjs.addEventListener("open", function (event) {
@@ -913,7 +914,7 @@ function initWhiteboard() {
     }
 
     // In any case, if we are on read-only whiteboard we activate read-only mode
-    if (ConfigService.isReadOnly) ReadOnlyService.activateReadOnlyMode();
+    // if (ConfigService.isReadOnly) ReadOnlyService.activateReadOnlyMode();
 
     $("body").show();
   });

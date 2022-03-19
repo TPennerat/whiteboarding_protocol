@@ -6,6 +6,7 @@ import ThrottlingService from "./services/ThrottlingService";
 import ConfigService from "./services/ConfigService";
 import html2canvas from "html2canvas";
 import DOMPurify from "dompurify";
+import MessageType from "./messageType";
 
 const RAD_TO_DEG = 180.0 / Math.PI;
 const DEG_TO_RAD = Math.PI / 180.0;
@@ -14,7 +15,7 @@ const _45_DEG_IN_RAD = 45 * DEG_TO_RAD;
 const whiteboard = {
   canvas: null,
   ctx: null,
-  drawcolor: "black",
+  drawcolor: "#000000",
   previousToolHtmlElem: null, // useful for handling read-only mode
   tool: "mouse",
   thickness: 4,
@@ -62,7 +63,6 @@ const whiteboard = {
     const svgns = "http://www.w3.org/2000/svg";
     const _this = this;
     for (const i in newSettings) {
-      console.log(newSettings);
       this.settings[i] = newSettings[i];
     }
     this.settings["username"] = this.settings["username"].replace(
@@ -163,10 +163,19 @@ const whiteboard = {
           currentPos.y,
           _this.thickness
         );
-        _this.sendFunction({
-          t: _this.tool,
-          d: [currentPos.x, currentPos.y, currentPos.x, currentPos.y],
-          th: _this.thickness,
+        _this.sendFunction(MessageType.CREATE_OBJECT, {
+          objectType: _this.tool,
+          objectId: _this.drawId,
+          boardObject: {
+            objectId: _this.drawId,
+            ownerId: "???",
+            isLocked: false,
+            coordinates: {
+              x: currentPos.x,
+              y: currentPos.y,
+            },
+            colour: hexToRgb(_this.drawcolor),
+          },
         });
       } else if (_this.tool === "line") {
         _this.startCoords = currentPos;
@@ -215,7 +224,8 @@ const whiteboard = {
 
       const currentPos = Point.fromEvent(e);
 
-      ThrottlingService.throttle(currentPos, () => {
+      //TODO useful ?
+      /*ThrottlingService.throttle(currentPos, () => {
         _this.lastPointerPosition = currentPos;
         _this.sendFunction({
           t: "cursor",
@@ -223,7 +233,7 @@ const whiteboard = {
           d: [currentPos.x, currentPos.y],
           username: _this.settings.username,
         });
-      });
+      });*/
     });
 
     _this.mouseOverlay.on("mousemove touchmove", function (e) {
@@ -247,11 +257,12 @@ const whiteboard = {
       let currentPos = Point.fromEvent(e);
 
       if (currentPos.isZeroZero) {
-        _this.sendFunction({
+        //TODO useless too ?
+        /*_this.sendFunction({
           t: "cursor",
           event: "out",
           username: _this.settings.username,
-        });
+        });*/
       }
 
       if (_this.tool === "line") {
@@ -266,16 +277,15 @@ const whiteboard = {
           _this.drawcolor,
           _this.thickness
         );
-        _this.sendFunction({
-          t: _this.tool,
-          d: [
+        _this.sendFunction(MessageType.CREATE_OBJECT, {
+          type: _this.tool,
+          pos: [
             currentPos.x,
             currentPos.y,
             _this.startCoords.x,
             _this.startCoords.y,
           ],
-          c: _this.drawcolor,
-          th: _this.thickness,
+          color: _this.drawcolor,
         });
         _this.svgContainer.find("line").remove();
       } else if (_this.tool === "pen") {
@@ -306,16 +316,15 @@ const whiteboard = {
           _this.drawcolor,
           _this.thickness
         );
-        _this.sendFunction({
-          t: _this.tool,
-          d: [
+        _this.sendFunction(MessageType.CREATE_OBJECT, {
+          type: _this.tool,
+          pos: [
             _this.startCoords.x,
             _this.startCoords.y,
             currentPos.x,
             currentPos.y,
           ],
-          c: _this.drawcolor,
-          th: _this.thickness,
+          color: _this.drawcolor,
         });
         _this.svgContainer.find("rect").remove();
       } else if (_this.tool === "circle") {
@@ -327,11 +336,10 @@ const whiteboard = {
           _this.drawcolor,
           _this.thickness
         );
-        _this.sendFunction({
-          t: _this.tool,
-          d: [_this.startCoords.x, _this.startCoords.y, r],
-          c: _this.drawcolor,
-          th: _this.thickness,
+        _this.sendFunction(MessageType.CREATE_OBJECT, {
+          type: _this.tool,
+          data: [_this.startCoords.x, _this.startCoords.y, r],
+          color: _this.drawcolor,
         });
         _this.svgContainer.find("circle").remove();
       } else if (_this.tool === "recSelect") {
@@ -412,9 +420,9 @@ const whiteboard = {
             const leftT = Math.round(p.left * 100) / 100;
             const topT = Math.round(p.top * 100) / 100;
             _this.drawId++;
-            _this.sendFunction({
-              t: _this.tool,
-              d: [left, top, leftT, topT, width, height],
+            _this.sendFunction(MessageType.CREATE_OBJECT, {
+              objectType: _this.tool,
+              boardObject: [left, top, leftT, topT, width, height],
             });
             _this.dragCanvasRectContent(left, top, leftT, topT, width, height);
             imgDiv.remove();
@@ -442,9 +450,9 @@ const whiteboard = {
       const fontsize = _this.thickness * 0.5;
       const txId = "tx" + +new Date();
       const isStickyNote = _this.tool === "stickynote";
-      _this.sendFunction({
-        t: "addTextBox",
-        d: [
+      _this.sendFunction(MessageType.CREATE_OBJECT, {
+        type: "addTextBox",
+        data: [
           _this.drawcolor,
           _this.textboxBackgroundColor,
           fontsize,
@@ -811,25 +819,11 @@ const whiteboard = {
     _this.canvas.height = _this.canvas.height;
     _this.imgContainer.empty();
     _this.textContainer.empty();
-    _this.sendFunction({ t: "clear" });
+    //TODO pas de clear whiteboard?
+    _this.sendFunction(MessageType.CLEAR_WHITEBOARD, {});
     _this.drawBuffer = [];
     _this.undoBuffer = [];
     _this.drawId = 0;
-  },
-  setStrokeThickness(thickness) {
-    var _this = this;
-    _this.thickness = thickness;
-
-    if (
-      (_this.tool == "text" || this.tool === "stickynote") &&
-      _this.latestActiveTextBoxId
-    ) {
-      _this.sendFunction({
-        t: "setTextboxFontSize",
-        d: [_this.latestActiveTextBoxId, thickness],
-      });
-      _this.setTextboxFontSize(_this.latestActiveTextBoxId, thickness);
-    }
   },
   imgWithSrc(url) {
     return $(
@@ -913,7 +907,7 @@ const whiteboard = {
             rotationAngle
           );
         }
-        _this.sendFunction({
+        _this.sendFunction(MessageType.CREATE_OBJECT, {
           t: "addImgBG",
           draw: draw,
           url: finalURL,
@@ -1034,7 +1028,7 @@ const whiteboard = {
 
       const newPointerPosition = new Point(currX, currY);
 
-      ThrottlingService.throttle(newPointerPosition, () => {
+      /*ThrottlingService.throttle(newPointerPosition, () => {
         _this.lastPointerPosition = newPointerPosition;
         _this.sendFunction({
           t: "cursor",
@@ -1042,7 +1036,7 @@ const whiteboard = {
           d: [newPointerPosition.x, newPointerPosition.y],
           username: _this.settings.username,
         });
-      });
+      });*/
     });
     this.textContainer.append(textBox);
     textBox.draggable({
@@ -1562,16 +1556,16 @@ const whiteboard = {
       }
     });
   },
-  sendFunction: function (content) {
+  sendFunction: function (messageType, content) {
     //Sends every draw to server
     var _this = this;
-    content["wid"] = _this.settings.whiteboardId;
-    content["userid"] = _this.settings.userid;
-    content["drawId"] = _this.drawId;
+    content.wid = _this.settings.whiteboardId;
+    content.userid = _this.settings.userid;
+    content.drawId = _this.drawId;
 
-    var tool = content["t"];
+    var tool = content.type;
     if (_this.settings.sendFunction) {
-      _this.settings.sendFunction(content);
+      _this.settings.sendFunction(messageType, content);
     }
     if (
       [
@@ -1664,6 +1658,17 @@ function testImage(url, callback, timeout) {
 
 function deleteFromBuffer(objectId) {
   this.buffer;
+}
+
+function hexToRgb(hex) {
+  var result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  return result
+    ? {
+        r: parseInt(result[1], 16),
+        g: parseInt(result[2], 16),
+        b: parseInt(result[3], 16),
+      }
+    : null;
 }
 
 export default whiteboard;
