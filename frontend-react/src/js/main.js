@@ -34,9 +34,9 @@ function main() {
     console.log("Websocket connected!");
     localStorage.setItem("pseudo", "tp");
     let meetingRequest;
-    let userWantsToJoin = false;
+    let userWantsToJoin = urlParams.get("join") === "true"; // false;
     if (userWantsToJoin) {
-      let meetingByUser = "inpututil";
+      let meetingByUser = urlParams.get("meetingId"); // "inpututil";
       meetingRequest = StringifyHelper.stringify(MessageType.JOIN_MEETING, {
         messageId: MessageHelper.generateId(),
         meetingId: meetingByUser,
@@ -61,47 +61,65 @@ function main() {
         meetingId = response.message.meetingId;
         initWhiteboard();
         break;
+      case MessageType.MEETING_JOINED:
+        userId = response.message.userId;
+        initWhiteboard();
+        break;
+      case MessageType.BOARD_UPDATE:
+        whiteboard.loadData(response);
       default:
-        showBasicAlert("???");
+        showBasicAlert("Unknown response" + event.data);
     }
+  });
+
+  // when user disconnect suddenly (aka close the tab or browser)
+  window.addEventListener("beforeunload", function (e) {
+    socketjs.send(
+      StringifyHelper.stringify(MessageType.LEAVE_MEETING, {
+        messageId: MessageHelper.generateId(),
+        userId: userId,
+        meetingId: meetingId,
+      })
+    );
+    socketjs.close();
   });
 
   /*socket.on("something", function () {
 
 
-    socket.on("whiteboardConfig", (serverResponse) => {
-      ConfigService.initFromServer(serverResponse);
-      // Inti whiteboard only when we have the config from the server
-      initWhiteboard();
-    });
+      socket.on("whiteboardConfig", (serverResponse) => {
+        ConfigService.initFromServer(serverResponse);
+        // Inti whiteboard only when we have the config from the server
+        initWhiteboard();
+      });
 
-    socket.on("whiteboardInfoUpdate", (info) => {
-      InfoService.updateInfoFromServer(info);
-      whiteboard.updateSmallestScreenResolution();
-    });
+      socket.on("whiteboardInfoUpdate", (info) => {
+        InfoService.updateInfoFromServer(info);
+        whiteboard.updateSmallestScreenResolution();
+      });
 
-    socket.on("drawToWhiteboard", function (content) {
-      whiteboard.handleEventsAndData(content, true);
-      InfoService.incrementNbMessagesReceived();
-    });
+      socket.on("drawToWhiteboard", function (content) {
+        whiteboard.handleEventsAndData(content, true);
+        InfoService.incrementNbMessagesReceived();
+      });
 
-    socket.on("refreshUserBadges", function () {
-      whiteboard.refreshUserBadges();
-    });
+      socket.on("refreshUserBadges", function () {
+        whiteboard.refreshUserBadges();
+      });
 
-    let accessDenied = false;
-    socket.on("wrongAccessToken", function () {
-      if (!accessDenied) {
-        accessDenied = true;
-        showBasicAlert("Access denied! Wrong accessToken!");
-      }
-    });
+      let accessDenied = false;
+      socket.on("wrongAccessToken", function () {
+        if (!accessDenied) {
+          accessDenied = true;
+          showBasicAlert("Access denied! Wrong accessToken!");
+        }
+      });
 
-    socket.emit("joinWhiteboard", {
-      wid: whiteboardId,
-      windowWidthHeight: { w: $(window).width(), h: $(window).height() },
-    });
-  });*/
+      socket.emit("joinWhiteboard", {
+        wid: whiteboardId,
+        windowWidthHeight: { w: $(window).width(), h: $(window).height() },
+      });
+    });*/
 }
 
 function showBasicAlert(html, newOptions) {
@@ -176,25 +194,6 @@ function initWhiteboard() {
         InfoService.incrementNbMessagesSent();
       },
     });
-
-    // request whiteboard from server
-    /*socketjs.emit("loadwhite")
-    $.get(subdir + "/api/loadwhiteboard", {
-      wid: whiteboardId,
-      at: accessToken,
-    }).done(function (data) {
-      console.log(data);
-      whiteboard.loadData(data);
-      if (copyfromwid && data.length == 0) {
-        //Copy from witheboard if current is empty and get parameter is given
-        $.get(subdir + "/api/loadwhiteboard", {
-          wid: copyfromwid,
-          at: accessToken,
-        }).done(function (data) {
-          whiteboard.loadData(data);
-        });
-      }
-    });*/
 
     /* $(window).resize(function () {
       signaling_socket.emit("updateScreenResolution", {

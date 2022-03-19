@@ -62,6 +62,7 @@ const whiteboard = {
     const svgns = "http://www.w3.org/2000/svg";
     const _this = this;
     for (const i in newSettings) {
+      console.log(newSettings);
       this.settings[i] = newSettings[i];
     }
     this.settings["username"] = this.settings["username"].replace(
@@ -1518,10 +1519,11 @@ const whiteboard = {
     return JSON.stringify(sendObj, null, 2);
   },
   loadData: function (content) {
+    console.log(content);
     var _this = this;
     _this.loadDataInSteps(content, true, function (stepData) {
       if (
-        stepData["username"] == _this.settings.username &&
+        stepData["username"] === _this.settings.username &&
         _this.drawId < stepData["drawId"]
       ) {
         _this.drawId = stepData["drawId"] + 1;
@@ -1533,7 +1535,7 @@ const whiteboard = {
 
     function lData(index) {
       for (var i = index; i < content.length; i++) {
-        if (content[i]["t"] === "addImgBG" && content[i]["draw"] == "1") {
+        if (content[i]["t"] === "addImgBG" && content[i]["draw"] === "1") {
           _this.handleEventsAndData(content[i], isNewData, function () {
             callAfterEveryStep(content[i], i);
             lData(i + 1);
