@@ -28,8 +28,7 @@ let ackWaitingIDs = [];
 let userId = null;
 
 function main() {
-  initWhiteboard();
-  socketjs = new WebSocket("ws://localhost:4444");
+  socketjs = new WebSocket("ws://192.168.1.100:4444");
 
   socketjs.addEventListener("open", function (event) {
     console.log("Websocket connected!");
@@ -41,7 +40,7 @@ function main() {
       meetingRequest = StringifyHelper.stringify(MessageType.JOIN_MEETING, {
         messageId: MessageHelper.generateId(),
         meetingId: meetingByUser,
-        pseudo: localStorage.getItem("pseudo"),
+        pseudo: "pseudo2",
       });
       meetingId = meetingByUser;
     } else {
@@ -60,7 +59,38 @@ function main() {
       case MessageType.MEETING_CREATED:
         userId = response.message.userId;
         meetingId = response.message.meetingId;
-        ConfigService.initFromServer({});
+        ConfigService.initFromServer({
+          common: {
+            onWhiteboardLoad: {
+              setReadOnly: false,
+              displayInfo: false,
+            },
+            showSmallestScreenIndicator: true,
+            imageDownloadFormat: "png",
+            imageURL: "",
+            drawBackgroundGrid: false,
+            backgroundGridImage: "bg_grid.png",
+            performance: {
+              refreshInfoFreq: 5,
+              pointerEventsThrottling: [
+                {
+                  fromUserCount: 0,
+                  minDistDelta: 1,
+                  maxFreq: 30,
+                },
+                {
+                  fromUserCount: 10,
+                  minDistDelta: 5,
+                  maxFreq: 10,
+                },
+              ],
+            },
+          },
+          whiteboardSpecific: {
+            correspondingReadOnlyWid: "737e8b72-0e15-4075-9dd5-9cb4c09909b0",
+            isReadOnly: false,
+          },
+        });
         initWhiteboard();
         whiteboard.loadData({});
         break;
@@ -77,15 +107,17 @@ function main() {
 
   // when user disconnect suddenly (aka close the tab or browser)
   window.addEventListener("beforeunload", function (e) {
-    socketjs.send(
-      StringifyHelper.stringify(MessageType.LEAVE_MEETING, {
-        messageId: MessageHelper.generateId(),
-        userId: userId,
-        meetingId: meetingId,
-      })
-    );
     socketjs.close();
   });
+
+  //TODO if user click on leave meeting button
+  /*socketjs.send(
+    StringifyHelper.stringify(MessageType.LEAVE_MEETING, {
+      messageId: MessageHelper.generateId(),
+      userId: userId,
+      meetingId: meetingId,
+    })
+  );*/
 
   /*socket.on("something", function () {
 
@@ -186,7 +218,6 @@ function initWhiteboard() {
     if (urlParams.get("webdav") === "true") {
       $("#uploadWebDavBtn").show();
     }
-
     whiteboard.loadWhiteboard("#whiteboardContainer", {
       //Load the whiteboard
       meetingId: meetingId,

@@ -118,7 +118,7 @@ class ConfigService {
     const { correspondingReadOnlyWid, isReadOnly } = whiteboardSpecific;
 
     this.#correspondingReadOnlyWid = correspondingReadOnlyWid;
-    this.#isReadOnly = false;
+    this.#isReadOnly = isReadOnly;
 
     console.log(
       "Whiteboard config from server:",
