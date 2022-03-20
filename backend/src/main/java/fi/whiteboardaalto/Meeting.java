@@ -52,6 +52,9 @@ public class Meeting {
     }
 
     public boolean pseudoAlreadyExists(String testPseudo) {
+        if(testPseudo.equals(host.getPseudo())) {
+            return true;
+        }
         for (User user : users) {
             if(user.getPseudo().equals(testPseudo)) {
                 return true;

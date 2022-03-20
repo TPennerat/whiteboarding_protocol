@@ -3,6 +3,8 @@ package fi.whiteboardaalto;
 import com.google.common.hash.HashCode;
 import com.google.common.hash.HashFunction;
 import com.google.common.hash.Hashing;
+import fi.whiteboardaalto.logging.Colour;
+import fi.whiteboardaalto.logging.ConsoleLogger;
 import fi.whiteboardaalto.messages.Message;
 import fi.whiteboardaalto.messages.MessageType;
 import fi.whiteboardaalto.messages.SuperMessage;
@@ -50,7 +52,8 @@ public class WhiteboardServer extends WebSocketServer {
     @Override
     public void onOpen(WebSocket webSocket, ClientHandshake clientHandshake) {
         conns.add(webSocket);
-        System.out.println("New connection from " + webSocket.getRemoteSocketAddress().getAddress().getHostAddress() + ":" + webSocket.getRemoteSocketAddress().getPort());
+        String toDisplay = "[<>] New connection from " + webSocket.getRemoteSocketAddress().getAddress().getHostAddress() + ":" + webSocket.getRemoteSocketAddress().getPort();
+        ConsoleLogger.loggConsole(toDisplay, Colour.CYAN);
     }
 
     @Override
@@ -66,7 +69,7 @@ public class WhiteboardServer extends WebSocketServer {
                 // If the host is the last one in the meeting
                 if(meeting.getTotalUsers() == 1) {
                     // We need to remove the meeting from the meeting the server is hosting
-                    System.out.println("[*] The meeting " + meeting.getMeetingId() + " will now be deleted.");
+                    ConsoleLogger.loggConsole("[i] The meeting " + meeting.getMeetingId() + " will now be deleted.", Colour.WHITE);
                     meetings.remove(meeting);
                 } else {
                     // If the host is not the last one, then we simply elect another host
@@ -75,7 +78,7 @@ public class WhiteboardServer extends WebSocketServer {
             }
         }
         conns.remove(conn);
-        System.out.println("[*] Closed connection to " + conn.getRemoteSocketAddress().getAddress().getHostAddress() + ":" + conn.getRemoteSocketAddress().getPort());
+        ConsoleLogger.loggConsole("[<>] Closed connection to " + conn.getRemoteSocketAddress().getAddress().getHostAddress() + ":" + conn.getRemoteSocketAddress().getPort(), Colour.YELLOW);
     }
 
     @Override
@@ -95,7 +98,7 @@ public class WhiteboardServer extends WebSocketServer {
 
         switch(superMessage.getMessageType()) {
             case CREATE_OBJECT:
-                System.out.println("[*] CREATE_OBJECT request received!");
+                ConsoleLogger.loggConsole("[$] CREATE_OBJECT request received", Colour.PURPLE);
                 CreateObject createObject = (CreateObject) superMessage.getMessage();
                 // Need to check if the user is authenticated with the userID from the request
                 if(!isUserAuth(createObject.getUserId(), conn)) {
@@ -107,9 +110,11 @@ public class WhiteboardServer extends WebSocketServer {
                     break;
                 }
                 addObjectToBoard(createObject, conn);
+                ConsoleLogger.loggConsole(toString(), Colour.DEFAULT);
                 break;
             case CREATE_MEETING:
-                System.out.println("[*] CREATE_MEETING request received!");
+                String networkId = conn.getRemoteSocketAddress().getAddress().getHostAddress() + ":" + conn.getRemoteSocketAddress().getPort();
+                ConsoleLogger.loggConsole("[$] CREATE_MEETING request received from " + networkId + ".", Colour.PURPLE);
                 CreateMeeting createMeeting = (CreateMeeting) superMessage.getMessage();
                 messageIdAck = createMeeting.getMessageId()+1;
                 if(users.get(conn) == null) {
@@ -121,10 +126,11 @@ public class WhiteboardServer extends WebSocketServer {
                         meeting = new Meeting(idGenerator(IdType.MEETING_ID), host);
                         meeting.setHost(host);
                         meetings.add(meeting);
-                        System.out.println("[*] New meeting created: " + meeting.getMeetingId());
+                        ConsoleLogger.loggConsole("[+] New meeting created by " + host.getPseudo() + ": " + meeting.getMeetingId(), Colour.GREEN);
                         // 3rd step: send back to the host a confirmation message
                         MeetingCreated meetingCreated = new MeetingCreated(messageIdAck, meeting.getMeetingId(), host.getUserId());
                         sendMessage(conn, meetingCreated, MessageType.MEETING_CREATED);
+                        ConsoleLogger.loggConsole(toString(), Colour.DEFAULT);
                     } else { ServerFullError error = new ServerFullError(messageIdAck); }
                 } else sendMessage(conn, new MeetingAlreadyCreatedError(createMeeting.getMessageId()+1), MessageType.MEETING_ALREADY_CREATED_ERROR);
                 break;
@@ -140,6 +146,7 @@ public class WhiteboardServer extends WebSocketServer {
                             // Sending the confirmation the meeting was joined
                             MeetingJoined meetingJoined = new MeetingJoined(joinMeeting.getMessageId()+1, meeting.getMeetingId(), newUser.getUserId());
                             sendMessage(conn, meetingJoined, MessageType.MEETING_JOINED);
+                            ConsoleLogger.loggConsole("[+] " + newUser.getPseudo() + " joined the following meeting: " + meeting.getMeetingId(), Colour.GREEN);
                             // We also need to send the user all the whiteboard objects
                             List<BoardUpdateComponent> components = meeting.getWhiteboard().getAllObjects();
                             BoardUpdate boardUpdate = new BoardUpdate(
@@ -150,12 +157,17 @@ public class WhiteboardServer extends WebSocketServer {
                             // Broadcasting the new user to the existing users
                             UserBroadcast userBroadcast = new UserBroadcast(messageIdGenerator(), newUser.getPseudo());
                             broadcastMessage(userBroadcast, conn, MessageType.USER_BROADCAST);
-                            System.out.println(toString());
+                            ConsoleLogger.loggConsole(toString(), Colour.DEFAULT);
                         } else sendMessage(conn, new BusyPseudoError(joinMeeting.getMessageId()+1), MessageType.BUSY_PSEUDO_ERROR);
                     } else sendMessage(conn, new AlreadyInMeetingError(joinMeeting.getMessageId()+1), MessageType.ALREADY_IN_MEETING_ERROR);
                 } else sendMessage(conn, new NonExistentMeetingError(joinMeeting.getMessageId()+1), MessageType.NON_EXISTENT_MEETING_ERROR);
                 break;
             case LEAVE_MEETING:
+                /*
+                    If the client sends a LeaveMeeting message and don't wait for the answer to close the socket,
+                    a Runtime error is thrown as the connection doesn't exist anymore.
+                    => FIX?
+                 */
                 LeaveMeeting leaveMeeting = (LeaveMeeting) superMessage.getMessage();
                 if(!isUserAuth(leaveMeeting.getUserId(), conn)) {
                     sendMessage(conn, new UserNotAuthError(leaveMeeting.getMessageId()+1), MessageType.USER_NOT_AUTH_ERROR);
@@ -171,9 +183,11 @@ public class WhiteboardServer extends WebSocketServer {
                 sendMessage(conn, meetingLeft, MessageType.MEETING_LEFT);
                 // Closing the connection
                 conn.close();
+                ConsoleLogger.loggConsole("[-] " + pseudo + " left the following meeting: " + leaveMeeting.getMeetingId(), Colour.YELLOW);
                 // Broadcasting that the user has left
                 UserLeftBroadcast userLeftBroadcast = new UserLeftBroadcast(messageIdGenerator(), pseudo);
                 broadcastMessage(userLeftBroadcast, conn, MessageType.USER_LEFT_BROADCAST);
+                ConsoleLogger.loggConsole(toString(), Colour.DEFAULT);
                 break;
             case SELECT:
                 SelectObject selectObject = (SelectObject) superMessage.getMessage();
@@ -246,7 +260,7 @@ public class WhiteboardServer extends WebSocketServer {
                         // Broadcasting the object with the new modifications
                         DeleteBroadcast deleteBroadcast = new DeleteBroadcast(messageIdGenerator(), deleteObject.getObjectId());
                         broadcastMessage(deleteBroadcast, conn, MessageType.DELETE_BROADCAST);
-                        System.out.println(toString());
+                        ConsoleLogger.loggConsole(toString(), Colour.DEFAULT);
                     } else sendMessage(conn, new BusyObjectError(deleteObject.getMessageId()+1), MessageType.BUSY_OBJECT_ERROR);
                 } else sendMessage(conn, new ObjectNotFoundError(deleteObject.getMessageId()+1), MessageType.OBJECT_NOT_FOUND_ERROR);
                 break;
@@ -316,7 +330,7 @@ public class WhiteboardServer extends WebSocketServer {
 
     @Override
     public void onStart() {
-        System.out.println("Starting the server...");
+        ConsoleLogger.loggConsole("[i] Starting the server...", Colour.WHITE);
     }
 
     @Override
@@ -367,7 +381,7 @@ public class WhiteboardServer extends WebSocketServer {
                 case STICKY_NOTE -> {
                     StickyNote stickyNote = (StickyNote) boardObject;
                     meeting.getWhiteboard().getBoardObjects().add(stickyNote);
-                    System.out.println("[*] StickyNote created and added to meeting " + meeting.getMeetingId());
+                    ConsoleLogger.loggConsole("[+] StickyNote created and added to meeting " + meeting.getMeetingId() + " by " + existingUser.getPseudo(), Colour.GREEN);
                     String serializedStickyNote = objectSerialize(stickyNote);
                     sha256hash = generateSha256Hash(serializedStickyNote);
                     changeBroadcast = new ChangeBroadcast(messageIdGenerator(), boardObject);
@@ -375,7 +389,7 @@ public class WhiteboardServer extends WebSocketServer {
                 case IMAGE -> {
                     Image image = (Image) boardObject;
                     meeting.getWhiteboard().getBoardObjects().add(image);
-                    System.out.println("[*] Image created and added to meeting " + meeting.getMeetingId());
+                    ConsoleLogger.loggConsole("[+] Image created and added to meeting " + meeting.getMeetingId() + " by " + existingUser.getPseudo(), Colour.GREEN);
                     String serializedImage = objectSerialize(image);
                     sha256hash = generateSha256Hash(serializedImage);
                     changeBroadcast = new ChangeBroadcast(messageIdGenerator(), image);
@@ -383,7 +397,7 @@ public class WhiteboardServer extends WebSocketServer {
                 case DRAWING -> {
                     Drawing drawing = (Drawing) boardObject;
                     meeting.getWhiteboard().getBoardObjects().add(drawing);
-                    System.out.println("[*] Drawing created and added to meeting " + meeting.getMeetingId());
+                    ConsoleLogger.loggConsole("[+] Drawing created and added to meeting " + meeting.getMeetingId() + " by " + existingUser.getPseudo(), Colour.GREEN);
                     String serializedDrawing = objectSerialize(drawing);
                     sha256hash = generateSha256Hash(serializedDrawing);
                     changeBroadcast = new ChangeBroadcast(messageIdGenerator(), drawing);
@@ -444,7 +458,9 @@ public class WhiteboardServer extends WebSocketServer {
         try {
             return mapper.readValue(object, SuperMessage.class);
         } catch (JsonProcessingException e) {
-            System.err.println("[*] Error in deserializing incoming JSON message: " + e.getMessage());
+            if(e.getMessage().startsWith("No content to map")) System.err.println("[e] Error: Empty message received, can't deserialize.");
+            else if (e.getMessage().startsWith("Unrecognized token")) System.err.println("[e] Error: Wrong message format.");
+            else System.err.println("[e] Error in deserializing incoming JSON message: " + e.getMessage());
             return null;
         }
     }
