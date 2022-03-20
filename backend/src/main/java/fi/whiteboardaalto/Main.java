@@ -15,8 +15,13 @@ import fi.whiteboardaalto.messages.client.session.CreateMeeting;
 import fi.whiteboardaalto.messages.client.session.JoinMeeting;
 import fi.whiteboardaalto.messages.client.session.LeaveMeeting;
 import fi.whiteboardaalto.messages.server.ack.object.ObjectCreated;
+import fi.whiteboardaalto.messages.server.update.BoardUpdate;
+import fi.whiteboardaalto.messages.server.update.BoardUpdateComponent;
 import fi.whiteboardaalto.objects.*;
 import org.apache.log4j.BasicConfigurator;
+
+import java.util.ArrayList;
+import java.util.List;
 
 public class Main {
 
@@ -60,6 +65,27 @@ public class Main {
                 new Coordinates(
                         3,
                         4
+                )
+        );
+
+        BoardObject boardObject2 = new StickyNote(
+                "aaabbbddd",
+                "forzbvufrzb",
+                true,
+                new Coordinates(
+                        8,
+                        14
+                ),
+                new Colour(
+                        255,
+                        255,
+                        255
+                ),
+                "This is ANOTHER test!",
+                "Sans Serif",
+                new Coordinates(
+                        4,
+                        8
                 )
         );
 
@@ -120,22 +146,32 @@ public class Main {
                 positionChange
         );
 
+        List<BoardUpdateComponent> list = new ArrayList<BoardUpdateComponent>();
+        BoardUpdateComponent component = new BoardUpdateComponent(
+                BoardObject.objectTypeMapper(boardObject.getClass().getSimpleName()),
+                boardObject
+        );
+        BoardUpdateComponent component2 = new BoardUpdateComponent(
+                BoardObject.objectTypeMapper(boardObject2.getClass().getSimpleName()),
+                boardObject2
+        );
+        list.add(component);
+        list.add(component2);
+        BoardUpdate boardUpdate = new BoardUpdate(
+                123456,
+                list
+        );
 
-        SuperMessage superMessage = new SuperMessage(MessageType.EDIT, editObject);
+        SuperMessage superMessage = new SuperMessage(MessageType.BOARD_UPDATE, boardUpdate);
         try {
             String serializedObject = superMessageSerialize(mapper, superMessage);
             System.out.println(serializedObject);
             SuperMessage superMessage2 = mapper.readValue(serializedObject, SuperMessage.class);
             System.out.println(superMessage2.getMessageType());
 
-            EditObject editObject1 = (EditObject) superMessage2.getMessage();
-            switch(editObject1.getEditType()) {
-                case POSITION_CHANGE -> {
-                    PositionChange positionChange1 = (PositionChange) editObject1.getChange();
-                    System.out.println("X = " + positionChange1.getNewPosition().getX());
-                    System.out.println("Y = " + positionChange1.getNewPosition().getY());
-                }
-            }
+            BoardUpdate bu = (BoardUpdate) superMessage2.getMessage();
+            BoardObject obj = bu.getBoardUpdateComponents().get(0).getBoardObject();
+            System.out.println(obj.getCoordinates().getX());
         } catch (JsonProcessingException e) {
             e.printStackTrace();
         }
@@ -143,9 +179,8 @@ public class Main {
     }
 
     public static void main(String[] args) {
-        testFunction();
-
-        //BasicConfigurator.configure();
-        //new WhiteboardServer(4444).start();
+        //testFunction();
+        BasicConfigurator.configure();
+        new WhiteboardServer(4444).start();
     }
 }

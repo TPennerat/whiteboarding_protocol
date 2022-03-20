@@ -9,11 +9,11 @@ import fi.whiteboardaalto.messages.client.object.CreateObject;
 import fi.whiteboardaalto.messages.client.object.DeleteObject;
 import fi.whiteboardaalto.messages.client.object.EditObject;
 import fi.whiteboardaalto.messages.client.object.SelectObject;
-import fi.whiteboardaalto.messages.client.object.change.EditType;
 import fi.whiteboardaalto.messages.client.session.CreateMeeting;
 import fi.whiteboardaalto.messages.client.session.JoinMeeting;
 import fi.whiteboardaalto.messages.client.session.LeaveMeeting;
 import fi.whiteboardaalto.messages.server.ack.object.ObjectCreated;
+import fi.whiteboardaalto.messages.server.update.BoardUpdate;
 
 public class SuperMessage {
     private MessageType messageType;
@@ -47,6 +47,7 @@ public class SuperMessage {
             @JsonSubTypes.Type(value = CreateMeeting.class, name = "CREATE_MEETING"),
             @JsonSubTypes.Type(value = JoinMeeting.class, name = "JOIN_MEETING"),
             @JsonSubTypes.Type(value = LeaveMeeting.class, name = "LEAVE_MEETING"),
+            @JsonSubTypes.Type(value = BoardUpdate.class, name = "BOARD_UPDATE"),
             // Server messages
             @JsonSubTypes.Type(value = ObjectCreated.class, name = "OBJECT_CREATED")
     })
