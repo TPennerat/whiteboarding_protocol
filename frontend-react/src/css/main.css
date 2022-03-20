@@ -12,24 +12,72 @@ body {
     Calibri, Helvetica, Arial, sans-serif;
 }
 
+#popUpConnection {
+  width: 50%;
+  height: 60vh;
+  background: rgb(231, 231, 231);
+  position: absolute;
+  z-index: 1;
+  top: 20%;
+  left: 25%;
+  border-radius: 4px;
+  padding-top: 1em;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+button.btnHome {
+  border: NONE;
+  background: white;
+  padding: 2em 3em;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 1.1em;
+  margin-right: 0.5em;
+  margin-left: 0.5em;
+}
+
+input.inputTat {
+  width: 70%;
+  margin-bottom: 1em;
+  font-size: 1.3em;
+  border: 0;
+  border-bottom: 5px solid #253677;
+  padding: 0.4em 0.6em;
+  outline: none;
+}
+
+.btnTat {
+  width: 70%;
+  margin-bottom: 1em;
+  font-size: 1.3em;
+  /* border: 0; */
+  /* border-bottom: 5px solid #253677; */
+  padding: 0.4em 0.6em;
+  outline: none;
+}
+
+button.btnHome:hover {
+  background: #dc3c43;
+  color: white;
+  transition: 0.5s;
+}
+
 #whiteboardContainer {
   height: calc(var(--vh, 1vh) * 100);
   width: 100%;
 }
 
 .btn-group button {
-  background: transparent;
-  border: 2px solid #636060;
+  background: rgba(140, 185, 233, 1);
+  border: 2px solid #ffffff;
   margin: -1px;
-  /* Green border */
-  color: black;
-  /* White text */
+  /* color: black; */
   padding: 11px 14px;
-  /* Some padding */
   cursor: pointer;
-  /* Pointer/hand icon */
   float: left;
-  /* Float the buttons side by side */
+  border-radius: 4px;
 }
 
 @media (max-device-width: 1024px) {
@@ -89,7 +137,7 @@ button::-moz-focus-inner {
 /* Add a background color on hover */
 
 .btn-group button:hover {
-  background-color: #9a9a9a;
+  background-color: #1f96d0;
 }
 
 button {

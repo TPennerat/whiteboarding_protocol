@@ -60,6 +60,7 @@ function main() {
     signaling_socket.on("whiteboardConfig", (serverResponse) => {
       ConfigService.initFromServer(serverResponse);
       // Inti whiteboard only when we have the config from the server
+      // initConnection();
       initWhiteboard();
     });
 
@@ -144,6 +145,10 @@ function showBasicAlert(html, newOptions) {
       alertHtml.find(".okbtn").click();
     }, 1000 * options.hideAfter);
   }
+}
+
+function initConnection() {
+  $("body").show();
 }
 
 function initWhiteboard() {
@@ -257,6 +262,35 @@ function initWhiteboard() {
         );
       }
     });
+
+    // Enter in the meeting
+    $("#joinMeeting")
+      .off("click")
+      .click(function () {
+        $("#BtnBox").hide();
+        $("#inputBoxJoin").show();
+      });
+
+    // Create in the meeting
+    $("#createMeeting")
+      .off("click")
+      .click(function () {
+        $("#BtnBox").hide();
+        $("#roomID").hide();
+        $("#inputBoxJoin").show();
+      });
+
+    // Enter in the meeting
+    $("#enterMeeting")
+      .off("click")
+      .click(function () {
+        $("#enterMeeting").val("Chargement ...");
+        // Démarage du whiteboard
+        initWhiteboard();
+
+        $("#toolbar").css("filter", "none");
+        $("#popUpConnection").hide();
+      });
 
     // whiteboard clear button
     $("#whiteboardTrashBtn")

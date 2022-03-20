@@ -1399,6 +1399,8 @@ const whiteboard = {
       }
     });
 
+    console.log(_this.drawBuffer);
+
     if (
       isNewData &&
       [

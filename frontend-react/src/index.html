@@ -7,11 +7,45 @@
   </head>
 
   <body style="display: none">
+    <div id="popUpConnection">
+      <div style="width: 30%; margin: 0 auto">
+        <img src="/img/tat.io.png" style="width: 100%" />
+      </div>
+      <h1>Welcome on Tat.io</h1>
+      <h2>A french new kind of whiteboard</h2>
+
+      <div id="BtnBox">
+        <button class="btnHome" id="createMeeting">Create a meeting</button>
+        <button class="btnHome" id="joinMeeting">Join a meeting</button>
+      </div>
+      <div id="inputBoxJoin" style="display: none">
+        <input
+          type="text"
+          class="inputTat"
+          id="username"
+          placeholder="Username"
+        />
+        <input type="text" class="inputTat" id="roomID" placeholder="Room ID" />
+        <input type="button" class="btnTat" id="enterMeeting" value="Enter" />
+      </div>
+    </div>
     <!---Whiteboard container -!-->
     <div id="whiteboardContainer"></div>
 
     <!---Toolbar -!-->
-    <div id="toolbar" style="position: absolute; top: 10px; left: 10px">
+    <div
+      id="toolbar"
+      style="
+        position: absolute;
+        top: 10px;
+        left: 10px;
+        width: 100%;
+        filter: blur(4px);
+      "
+    >
+      <div style="width: 10%; float: left; margin-right: 30px">
+        <img src="/img/tat.io.png" style="width: 100%" />
+      </div>
       <div class="btn-group">
         <button
           id="whiteboardLockBtn"
@@ -67,7 +101,7 @@
         >
           <i class="fa fa-mouse-pointer"></i>
         </button>
-        <button
+        <!-- <button
           style="padding-bottom: 11px"
           tool="recSelect"
           title="Select an area"
@@ -75,7 +109,7 @@
           class="whiteboard-tool"
         >
           <img src="./images/dottedRec.png" />
-        </button>
+        </button> -->
         <button
           tool="pen"
           title="Take the pen"
@@ -119,7 +153,7 @@
         </button>
       </div>
 
-      <div class="btn-group whiteboard-edit-group">
+      <!-- <div class="btn-group whiteboard-edit-group">
         <button style="width: 190px; cursor: default">
           <div
             class="activeToolIcon"
@@ -160,17 +194,17 @@
             data-color="#000000"
           ></div>
         </button>
-      </div>
+      </div> -->
 
       <div class="btn-group whiteboard-edit-group">
-        <button
+        <!-- <button
           tool="text"
           title="write text"
           type="button"
           class="whiteboard-tool"
         >
           <i class="fas fa-font"></i>
-        </button>
+        </button> -->
         <button
           tool="stickynote"
           title="place a sticky note"
@@ -184,7 +218,7 @@
           style="display: none"
           title="text background-color"
         >
-          <div
+          <!-- <div
             id="textboxBackgroundColorPicker"
             style="
               width: 26px;
@@ -196,7 +230,7 @@
               position: relative;
             "
             data-color="#f5f587"
-          ></div>
+          ></div> -->
         </button>
       </div>
 
@@ -219,7 +253,7 @@
           ></i>
         </button>
 
-        <button
+        <!-- <button
           style="position: relative"
           id="uploadJsonBtn"
           title="Load saved JSON to whiteboard"
@@ -236,7 +270,7 @@
             "
             class="fas fa-upload"
           ></i>
-        </button>
+        </button> -->
 
         <input style="display: none" id="myFile" type="file" />
       </div>
@@ -259,7 +293,7 @@
             class="fas fa-save"
           ></i>
         </button>
-        <button
+        <!-- <button
           style="position: relative; display: none"
           id="uploadWebDavBtn"
           title="Save whiteboard to webdav"
@@ -276,8 +310,8 @@
             "
             class="fas fa-save"
           ></i>
-        </button>
-        <button
+        </button> -->
+        <!-- <button
           style="position: relative"
           id="saveAsJSONBtn"
           title="Save whiteboard as JSON"
@@ -294,11 +328,11 @@
             "
             class="fas fa-save"
           ></i>
-        </button>
+        </button> -->
 
-        <button id="shareWhiteboardBtn" title="share whiteboard" type="button">
+        <!-- <button id="shareWhiteboardBtn" title="share whiteboard" type="button">
           <i class="fas fa-share-square"></i>
-        </button>
+        </button> -->
 
         <button
           id="displayWhiteboardInfoBtn"
@@ -330,7 +364,7 @@
       </div>
     </div>
 
-    <div id="whiteboardInfoContainer">
+    <div id="whiteboardInfoContainer" style="display: none">
       <p><b>Whiteboard information:</b></p>
       <p># connected users: <i id="connectedUsersCount">0</i></p>
       <p>
