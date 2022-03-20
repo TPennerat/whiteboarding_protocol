@@ -7,6 +7,8 @@ import fi.whiteboardaalto.messages.Message;
 import fi.whiteboardaalto.messages.MessageType;
 import fi.whiteboardaalto.messages.SuperMessage;
 import fi.whiteboardaalto.messages.client.object.*;
+import fi.whiteboardaalto.messages.client.object.change.ColourChange;
+import fi.whiteboardaalto.messages.client.object.change.CommentChange;
 import fi.whiteboardaalto.messages.client.object.change.PositionChange;
 import fi.whiteboardaalto.messages.client.session.CreateMeeting;
 import fi.whiteboardaalto.messages.client.session.JoinMeeting;
@@ -17,20 +19,15 @@ import fi.whiteboardaalto.messages.server.ack.session.MeetingJoined;
 import fi.whiteboardaalto.messages.server.ack.session.MeetingLeft;
 import fi.whiteboardaalto.messages.server.errors.*;
 import fi.whiteboardaalto.messages.server.update.*;
-import fi.whiteboardaalto.objects.BoardObject;
-import fi.whiteboardaalto.objects.Coordinates;
-import fi.whiteboardaalto.objects.StickyNote;
+import fi.whiteboardaalto.objects.*;
 import org.java_websocket.WebSocket;
 import org.java_websocket.handshake.ClientHandshake;
 import org.java_websocket.server.WebSocketServer;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import javax.swing.text.Position;
-import java.io.IOException;
-import java.net.InetAddress;
+import javax.swing.text.Style;
 import java.net.InetSocketAddress;
-import java.net.NetworkInterface;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 
@@ -66,12 +63,19 @@ public class WhiteboardServer extends WebSocketServer {
                 // If the user is a not a host, we simply remove it from the users set
                 meeting.getUsers().remove(existingUser);
             } else if (meeting.getHost() == existingUser) {
-                // If the user is a host, we need to proceed to a host transfer
-                meeting.transferHost();
+                // If the host is the last one in the meeting
+                if(meeting.getTotalUsers() == 1) {
+                    // We need to remove the meeting from the meeting the server is hosting
+                    System.out.println("[*] The meeting " + meeting.getMeetingId() + " will now be deleted.");
+                    meetings.remove(meeting);
+                } else {
+                    // If the host is not the last one, then we simply elect another host
+                    meeting.transferHost();
+                }
             }
         }
         conns.remove(conn);
-        System.out.println("Closed connection to " + conn.getRemoteSocketAddress().getAddress().getHostAddress() + ":" + conn.getRemoteSocketAddress().getPort());
+        System.out.println("[*] Closed connection to " + conn.getRemoteSocketAddress().getAddress().getHostAddress() + ":" + conn.getRemoteSocketAddress().getPort());
     }
 
     @Override
@@ -87,6 +91,7 @@ public class WhiteboardServer extends WebSocketServer {
         User existingUser;
         Meeting meeting;
         BoardObject boardObject;
+        int messageIdAck;
 
         switch(superMessage.getMessageType()) {
             case CREATE_OBJECT:
@@ -101,42 +106,12 @@ public class WhiteboardServer extends WebSocketServer {
                     sendMessage(conn, new MessageMalformedError(createObject.getMessageId()+1), MessageType.MESSAGE_MALFORMED_ERROR);
                     break;
                 }
-                existingUser = users.get(conn);
-                switch(createObject.getObjectType()) {
-                    case STICKY_NOTE:
-                        StickyNote stickyNote = (StickyNote) createObject.getBoardObject();
-                        // Need to define custom exception: if meeting null?
-                        meeting = findMeetingByUserId(existingUser.getUserId());
-                        if(meeting == null) {System.err.println("[*] Error: User is not in any meeting."); break;}
-                        int messageIdAck = createObject.getMessageId()+1;
-                        if(!meeting.getWhiteboard().coordinatesAreBusyByObject(stickyNote)) {
-                            String objectId = idGenerator(IdType.OBJECT_ID);
-                            // Preparing the sticky note before adding it in the objects list of the meeting
-                            stickyNote.setObjectId(objectId);
-                            stickyNote.setIsLocked(false);
-                            stickyNote.setOwnerId(existingUser.getUserId());
-                            // Adding the sticky note
-                            meeting.getWhiteboard().getBoardObjects().add(stickyNote);
-                            // Calculating hash
-                            String serializedStickyNote = objectSerialize(stickyNote);
-                            String sha256hash = generateSha256Hash(serializedStickyNote);
-                            // Sending confirmation
-                            ObjectCreated objectCreated = new ObjectCreated(messageIdAck, objectId, sha256hash);
-                            System.out.println("[*] StickyNote created and added to meeting " + meeting.getMeetingId());
-                            sendMessage(conn, objectCreated, MessageType.OBJECT_CREATED);
-                            // Preparing the broadcast message
-                            ChangeBroadcast changeBroadcast = new ChangeBroadcast(messageIdGenerator(), stickyNote);
-                            broadcastMessage(changeBroadcast, conn, MessageType.CHANGE_BROADCAST);
-                        } else { sendMessage(conn, new BusyCoordinatesError(messageIdAck), MessageType.BUSY_COORDINATES_ERROR); }
-                        break;
-                    case IMAGE:
-                        break;
-                }
+                addObjectToBoard(createObject, conn);
                 break;
             case CREATE_MEETING:
                 System.out.println("[*] CREATE_MEETING request received!");
                 CreateMeeting createMeeting = (CreateMeeting) superMessage.getMessage();
-                int messageIdAck = createMeeting.getMessageId()+1;
+                messageIdAck = createMeeting.getMessageId()+1;
                 if(users.get(conn) == null) {
                     if(meetings.size()+1 <= 5) {
                         // 1st step: create new user, who will be the host of the meeting, and add it to server
@@ -186,16 +161,19 @@ public class WhiteboardServer extends WebSocketServer {
                     sendMessage(conn, new UserNotAuthError(leaveMeeting.getMessageId()+1), MessageType.USER_NOT_AUTH_ERROR);
                     break;
                 }
+                String pseudo = users.get(conn).getPseudo();
                 // Sending confirmation that the user left the meeting
                 MeetingLeft meetingLeft = new MeetingLeft(
                         leaveMeeting.getMessageId()+1,
                         leaveMeeting.getMeetingId(),
                         leaveMeeting.getUserId()
                 );
-                System.out.println("Confirmation sent to user that the meeting was left!");
                 sendMessage(conn, meetingLeft, MessageType.MEETING_LEFT);
                 // Closing the connection
                 conn.close();
+                // Broadcasting that the user has left
+                UserLeftBroadcast userLeftBroadcast = new UserLeftBroadcast(messageIdGenerator(), pseudo);
+                broadcastMessage(userLeftBroadcast, conn, MessageType.USER_LEFT_BROADCAST);
                 break;
             case SELECT:
                 SelectObject selectObject = (SelectObject) superMessage.getMessage();
@@ -286,27 +264,49 @@ public class WhiteboardServer extends WebSocketServer {
                     sendMessage(conn, new ObjectNotOwnedError(editObject.getMessageId()+1), MessageType.OBJECT_NOT_OWNED_ERROR);
                     break;
                 }
+
+                String checksum;
                 // If we got here, it means that:
                 //      => The user is allowed to perform the action, as it owns the object.
                 switch(editObject.getEditType()) {
                     case POSITION_CHANGE:
                         PositionChange positionChange = (PositionChange) editObject.getChange();
                         // We need to check also if the new position chosen is not busy (occupied by another object).
-                        if(meeting.getWhiteboard().coordinatesAreBusy(boardObject.getCoordinates())) {
+                        if(meeting.getWhiteboard().coordinatesAreBusy(positionChange.getNewPosition())) {
                             sendMessage(conn, new BusyCoordinatesError(editObject.getMessageId()+1), MessageType.BUSY_COORDINATES_ERROR);
                             break;
                         }
-                        // Changing the current position of the object
                         boardObject.setCoordinates(positionChange.getNewPosition());
-                        // Sending confirmation of the change to the source
-                        String checksum = generateSha256Hash(objectSerialize(boardObject));
+                        checksum = generateSha256Hash(objectSerialize(boardObject));
                         PositionChanged positionChanged = new PositionChanged(editObject.getMessageId()+1, checksum);
                         sendMessage(conn, positionChanged, MessageType.POSITION_CHANGED);
-                        // Broadcasting the object's new state with the latest modifications
-                        ChangeBroadcast changeBroadcast = new ChangeBroadcast(messageIdGenerator(), boardObject);
-                        broadcastMessage(changeBroadcast, conn, MessageType.CHANGE_BROADCAST);
+                        break;
+                    case COLOUR_CHANGE:
+                        if(boardObject instanceof Image) {
+                            sendMessage(conn, new ChangeNotAllowedError(editObject.getMessageId()+1), MessageType.CHANGE_NOT_ALLOWED_ERROR);
+                            break;
+                        }
+                        ColourChange colourChange = (ColourChange) editObject.getChange();
+                        boardObject.setColour(colourChange.getNewColour());
+                        checksum = generateSha256Hash(objectSerialize(boardObject));
+                        ColourChanged colourChanged = new ColourChanged(editObject.getMessageId()+1, checksum);
+                        sendMessage(conn, colourChanged, MessageType.COLOR_CHANGED);
+                        break;
+                    case COMMENT_CHANGE:
+                        if(boardObject instanceof Drawing || boardObject instanceof StickyNote) {
+                            sendMessage(conn, new ChangeNotAllowedError(editObject.getMessageId()+1), MessageType.CHANGE_NOT_ALLOWED_ERROR);
+                            break;
+                        }
+                        CommentChange commentChange = (CommentChange) editObject.getChange();
+                        Image image = (Image) boardObject;
+                        image.setComment(commentChange.getNewComment());
+                        checksum = generateSha256Hash(objectSerialize(image));
+                        CommentChanged commentChanged = new CommentChanged(editObject.getMessageId()+1, checksum);
+                        sendMessage(conn, commentChanged, MessageType.COMMENT_CHANGED);
                         break;
                 }
+                ChangeBroadcast changeBroadcast = new ChangeBroadcast(messageIdGenerator(), boardObject);
+                broadcastMessage(changeBroadcast, conn, MessageType.CHANGE_BROADCAST);
                 break;
         }
     }
@@ -341,9 +341,59 @@ public class WhiteboardServer extends WebSocketServer {
                         .append(", owner ID: ").append(boardObject.getOwnerId())
                         .append(System.lineSeparator());
             }
-
+            toString.append("- Total users: ").append(meeting.getTotalUsers()).append(System.lineSeparator());
         }
         return toString.toString();
+    }
+
+    private void addObjectToBoard(CreateObject createObject, WebSocket conn) {
+
+        ObjectType objectType = createObject.getObjectType();
+        BoardObject boardObject = createObject.getBoardObject();
+        User existingUser = users.get(conn);
+        int messageIdAck = createObject.getMessageId()+1;
+        String objectId = idGenerator(IdType.OBJECT_ID);
+        Meeting meeting = findMeetingByUserId(existingUser.getUserId());
+
+        if(!meeting.getWhiteboard().coordinatesAreBusyByObject(boardObject)) {
+            boardObject.setObjectId(objectId);
+            boardObject.setIsLocked(true);
+            boardObject.setOwnerId(existingUser.getUserId());
+
+            String sha256hash = null;
+            ChangeBroadcast changeBroadcast = null;
+
+            switch (objectType) {
+                case STICKY_NOTE -> {
+                    StickyNote stickyNote = (StickyNote) boardObject;
+                    meeting.getWhiteboard().getBoardObjects().add(stickyNote);
+                    System.out.println("[*] StickyNote created and added to meeting " + meeting.getMeetingId());
+                    String serializedStickyNote = objectSerialize(stickyNote);
+                    sha256hash = generateSha256Hash(serializedStickyNote);
+                    changeBroadcast = new ChangeBroadcast(messageIdGenerator(), boardObject);
+                }
+                case IMAGE -> {
+                    Image image = (Image) boardObject;
+                    meeting.getWhiteboard().getBoardObjects().add(image);
+                    System.out.println("[*] Image created and added to meeting " + meeting.getMeetingId());
+                    String serializedImage = objectSerialize(image);
+                    sha256hash = generateSha256Hash(serializedImage);
+                    changeBroadcast = new ChangeBroadcast(messageIdGenerator(), image);
+                }
+                case DRAWING -> {
+                    Drawing drawing = (Drawing) boardObject;
+                    meeting.getWhiteboard().getBoardObjects().add(drawing);
+                    System.out.println("[*] Drawing created and added to meeting " + meeting.getMeetingId());
+                    String serializedDrawing = objectSerialize(drawing);
+                    sha256hash = generateSha256Hash(serializedDrawing);
+                    changeBroadcast = new ChangeBroadcast(messageIdGenerator(), drawing);
+                }
+            }
+            ObjectCreated objectCreated = new ObjectCreated(messageIdAck, objectId, sha256hash);
+            sendMessage(conn, objectCreated, MessageType.OBJECT_CREATED);
+            broadcastMessage(changeBroadcast, conn, MessageType.CHANGE_BROADCAST);
+        } else { sendMessage(conn, new BusyCoordinatesError(messageIdAck), MessageType.BUSY_COORDINATES_ERROR); }
+
     }
 
     private void broadcastMessage(Object object, WebSocket notToSendTo, MessageType messageType) {

@@ -79,6 +79,11 @@ public class Meeting {
         System.out.println("[*] The new host of the meeting is: " + newHost.getPseudo());
     }
 
+    public int getTotalUsers() {
+        // The +1 is for the host. There is always a host because if the host leaves a meeting, a new one is chosen.
+        return users.size()+1;
+    }
+
     @Override
     public String toString() {
         StringBuilder toString;
