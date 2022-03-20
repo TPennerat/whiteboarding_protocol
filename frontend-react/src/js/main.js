@@ -24,32 +24,15 @@ let meetingId = urlParams.get("meetingId");
 
 document.title = "tat.io";
 let socketjs = null;
-let ackWaitingIDs = [];
 let userId = null;
 
 function main() {
-  socketjs = new WebSocket("ws://192.168.1.100:4444");
+  socketjs = new WebSocket("ws://localhost:4444");
 
   socketjs.addEventListener("open", function (event) {
     console.log("Websocket connected!");
-    localStorage.setItem("pseudo", "tp");
-    let meetingRequest;
-    let userWantsToJoin = urlParams.get("join") === "true"; // false;
-    if (userWantsToJoin) {
-      let meetingByUser = urlParams.get("meetingId"); // "inpututil";
-      meetingRequest = StringifyHelper.stringify(MessageType.JOIN_MEETING, {
-        messageId: MessageHelper.generateId(),
-        meetingId: meetingByUser,
-        pseudo: "pseudo2",
-      });
-      meetingId = meetingByUser;
-    } else {
-      meetingRequest = StringifyHelper.stringify(MessageType.CREATE_MEETING, {
-        messageId: MessageHelper.generateId(),
-        pseudo: localStorage.getItem("pseudo"),
-      });
-    }
-    socketjs.send(meetingRequest);
+    initConnection();
+    initWhiteboard();
   });
 
   socketjs.addEventListener("message", function (event) {
@@ -305,6 +288,10 @@ function initWhiteboard() {
     $("#joinMeeting")
       .off("click")
       .click(function () {
+        const pseudo = localStorage.getItem("pseudo");
+        if (pseudo) {
+          $("#username").val(pseudo);
+        }
         $("#BtnBox").hide();
         $("#inputBoxJoin").show();
       });
@@ -313,9 +300,14 @@ function initWhiteboard() {
     $("#createMeeting")
       .off("click")
       .click(function () {
+        const pseudo = localStorage.getItem("pseudo");
+        if (pseudo) {
+          $("#username").val(pseudo);
+        }
         $("#BtnBox").hide();
         $("#roomID").hide();
         $("#inputBoxJoin").show();
+        $("#roomID").removeAttr("required");
       });
 
     // Enter in the meeting
@@ -324,7 +316,25 @@ function initWhiteboard() {
       .click(function () {
         $("#enterMeeting").val("Chargement ...");
         // Démarage du whiteboard
-        initWhiteboard();
+        let meetingRequest;
+        if ($("#roomID").val() !== "") {
+          let meetingByUser = $("#roomID").val();
+          meetingRequest = StringifyHelper.stringify(MessageType.JOIN_MEETING, {
+            messageId: MessageHelper.generateId(),
+            meetingId: meetingByUser,
+            pseudo: $("#username").val(),
+          });
+          meetingId = meetingByUser;
+        } else {
+          meetingRequest = StringifyHelper.stringify(
+            MessageType.CREATE_MEETING,
+            {
+              messageId: MessageHelper.generateId(),
+              pseudo: localStorage.getItem("pseudo") || $("#username").val(),
+            }
+          );
+        }
+        socketjs.send(meetingRequest);
 
         $("#toolbar").css("filter", "none");
         $("#popUpConnection").hide();
