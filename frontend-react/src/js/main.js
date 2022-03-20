@@ -60,7 +60,9 @@ function main() {
       case MessageType.MEETING_CREATED:
         userId = response.message.userId;
         meetingId = response.message.meetingId;
+        ConfigService.initFromServer({});
         initWhiteboard();
+        whiteboard.loadData({});
         break;
       case MessageType.MEETING_JOINED:
         userId = response.message.userId;
@@ -902,7 +904,8 @@ function initWhiteboard() {
 
     if (process.env.NODE_ENV === "production") {
       if (ConfigService.readOnlyOnWhiteboardLoad)
-        ReadOnlyService.activateReadOnlyMode();
+        // ReadOnlyService.activateReadOnlyMode();
+        console.log("readonly?");
       else ReadOnlyService.deactivateReadOnlyMode();
 
       if (ConfigService.displayInfoOnWhiteboardLoad) InfoService.displayInfo();
@@ -937,6 +940,7 @@ function initWhiteboard() {
     false
   );
 
+  //TODO need to see this
   function uploadImgAndAddToWhiteboard(base64data) {
     const date = +new Date();
     $.ajax({
@@ -960,40 +964,6 @@ function initWhiteboard() {
       },
       error: function (err) {
         showBasicAlert("Failed to upload frame: " + JSON.stringify(err));
-      },
-    });
-  }
-
-  function saveWhiteboardToWebdav(base64data, webdavaccess, callback) {
-    var date = +new Date();
-    $.ajax({
-      type: "POST",
-      url:
-        document.URL.substr(0, document.URL.lastIndexOf("/")) + "/api/upload",
-      data: {
-        imagedata: base64data,
-        wid: whiteboardId,
-        date: date,
-        at: accessToken,
-        webdavaccess: JSON.stringify(webdavaccess),
-      },
-      success: function (msg) {
-        showBasicAlert("Whiteboard was saved to Webdav!", {
-          headercolor: "#5c9e5c",
-        });
-        console.log("Image uploaded to webdav!");
-        callback();
-      },
-      error: function (err) {
-        console.error(err);
-        if (err.status == 403) {
-          showBasicAlert(
-            "Could not connect to Webdav folder! Please check the credentials and paths and try again!"
-          );
-        } else {
-          showBasicAlert("Unknown Webdav error! ", err);
-        }
-        callback(err);
       },
     });
   }
