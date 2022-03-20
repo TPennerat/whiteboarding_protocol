@@ -6,6 +6,9 @@ import ThrottlingService from "./services/ThrottlingService";
 import ConfigService from "./services/ConfigService";
 import html2canvas from "html2canvas";
 import DOMPurify from "dompurify";
+import MessageType from "./messageType";
+import MessageHelper from "./services/MessageHelper";
+import ObjectType from "./objectType";
 
 const RAD_TO_DEG = 180.0 / Math.PI;
 const DEG_TO_RAD = Math.PI / 180.0;
@@ -14,7 +17,7 @@ const _45_DEG_IN_RAD = 45 * DEG_TO_RAD;
 const whiteboard = {
   canvas: null,
   ctx: null,
-  drawcolor: "black",
+  drawcolor: "#000000",
   previousToolHtmlElem: null, // useful for handling read-only mode
   tool: "mouse",
   thickness: 4,
@@ -49,6 +52,7 @@ const whiteboard = {
   pressedKeys: {},
   settings: {
     whiteboardId: "0",
+    userId: null,
     username: "unknown",
     sendFunction: null,
     backgroundGridUrl: "./images/gb_grid.png",
@@ -162,10 +166,19 @@ const whiteboard = {
           currentPos.y,
           _this.thickness
         );
-        _this.sendFunction({
-          t: _this.tool,
-          d: [currentPos.x, currentPos.y, currentPos.x, currentPos.y],
-          th: _this.thickness,
+        _this.sendFunction(MessageType.CREATE_OBJECT, {
+          objectType: _this.tool,
+          objectId: _this.drawId,
+          boardObject: {
+            objectId: _this.drawId,
+            ownerId: "???",
+            isLocked: false,
+            coordinates: {
+              x: currentPos.x,
+              y: currentPos.y,
+            },
+            colour: hexToRgb(_this.drawcolor),
+          },
         });
       } else if (_this.tool === "line") {
         _this.startCoords = currentPos;
@@ -214,7 +227,8 @@ const whiteboard = {
 
       const currentPos = Point.fromEvent(e);
 
-      ThrottlingService.throttle(currentPos, () => {
+      //TODO useful ?
+      /*ThrottlingService.throttle(currentPos, () => {
         _this.lastPointerPosition = currentPos;
         _this.sendFunction({
           t: "cursor",
@@ -222,7 +236,7 @@ const whiteboard = {
           d: [currentPos.x, currentPos.y],
           username: _this.settings.username,
         });
-      });
+      });*/
     });
 
     _this.mouseOverlay.on("mousemove touchmove", function (e) {
@@ -246,11 +260,12 @@ const whiteboard = {
       let currentPos = Point.fromEvent(e);
 
       if (currentPos.isZeroZero) {
-        _this.sendFunction({
+        //TODO useless too ?
+        /*_this.sendFunction({
           t: "cursor",
           event: "out",
           username: _this.settings.username,
-        });
+        });*/
       }
 
       if (_this.tool === "line") {
@@ -265,16 +280,20 @@ const whiteboard = {
           _this.drawcolor,
           _this.thickness
         );
-        _this.sendFunction({
-          t: _this.tool,
-          d: [
-            currentPos.x,
-            currentPos.y,
-            _this.startCoords.x,
-            _this.startCoords.y,
-          ],
-          c: _this.drawcolor,
-          th: _this.thickness,
+        _this.sendFunction(MessageType.CREATE_OBJECT, {
+          objectType: ObjectType.STICKY_NOTE,
+          messageId: MessageHelper.generateId(),
+          objectId: "",
+          boardObject: {
+            objectId: _this.drawId,
+            ownerId: "???",
+            isLocked: false,
+            coordinates: {
+              x: currentPos.x,
+              y: currentPos.y,
+            },
+            colour: hexToRgb(_this.drawcolor),
+          },
         });
         _this.svgContainer.find("line").remove();
       } else if (_this.tool === "pen") {
@@ -305,16 +324,19 @@ const whiteboard = {
           _this.drawcolor,
           _this.thickness
         );
-        _this.sendFunction({
-          t: _this.tool,
-          d: [
-            _this.startCoords.x,
-            _this.startCoords.y,
-            currentPos.x,
-            currentPos.y,
-          ],
-          c: _this.drawcolor,
-          th: _this.thickness,
+        _this.sendFunction(MessageType.CREATE_OBJECT, {
+          objectType: _this.tool,
+          objectId: _this.drawId,
+          boardObject: {
+            objectId: _this.drawId,
+            ownerId: "???",
+            isLocked: false,
+            coordinates: {
+              x: currentPos.x,
+              y: currentPos.y,
+            },
+            colour: hexToRgb(_this.drawcolor),
+          },
         });
         _this.svgContainer.find("rect").remove();
       } else if (_this.tool === "circle") {
@@ -326,11 +348,19 @@ const whiteboard = {
           _this.drawcolor,
           _this.thickness
         );
-        _this.sendFunction({
-          t: _this.tool,
-          d: [_this.startCoords.x, _this.startCoords.y, r],
-          c: _this.drawcolor,
-          th: _this.thickness,
+        _this.sendFunction(MessageType.CREATE_OBJECT, {
+          objectType: _this.tool,
+          objectId: _this.drawId,
+          boardObject: {
+            objectId: _this.drawId,
+            ownerId: "???",
+            isLocked: false,
+            coordinates: {
+              x: currentPos.x,
+              y: currentPos.y,
+            },
+            colour: hexToRgb(_this.drawcolor),
+          },
         });
         _this.svgContainer.find("circle").remove();
       } else if (_this.tool === "recSelect") {
@@ -411,9 +441,19 @@ const whiteboard = {
             const leftT = Math.round(p.left * 100) / 100;
             const topT = Math.round(p.top * 100) / 100;
             _this.drawId++;
-            _this.sendFunction({
-              t: _this.tool,
-              d: [left, top, leftT, topT, width, height],
+            _this.sendFunction(MessageType.CREATE_OBJECT, {
+              objectType: _this.tool,
+              objectId: _this.drawId,
+              boardObject: {
+                objectId: _this.drawId,
+                ownerId: "???",
+                isLocked: false,
+                coordinates: {
+                  x: currentPos.x,
+                  y: currentPos.y,
+                },
+                colour: hexToRgb(_this.drawcolor),
+              },
             });
             _this.dragCanvasRectContent(left, top, leftT, topT, width, height);
             imgDiv.remove();
@@ -441,17 +481,19 @@ const whiteboard = {
       const fontsize = _this.thickness * 0.5;
       const txId = "tx" + +new Date();
       const isStickyNote = _this.tool === "stickynote";
-      _this.sendFunction({
-        t: "addTextBox",
-        d: [
-          _this.drawcolor,
-          _this.textboxBackgroundColor,
-          fontsize,
-          currentPos.x,
-          currentPos.y,
-          txId,
-          isStickyNote,
-        ],
+      _this.sendFunction(MessageType.CREATE_OBJECT, {
+        objectType: _this.tool,
+        objectId: _this.drawId,
+        boardObject: {
+          objectId: _this.drawId,
+          ownerId: "???",
+          isLocked: false,
+          coordinates: {
+            x: currentPos.x,
+            y: currentPos.y,
+          },
+          colour: hexToRgb(_this.drawcolor),
+        },
       });
       _this.addTextBox(
         _this.drawcolor,
@@ -510,10 +552,19 @@ const whiteboard = {
             _this.prevPos.y,
             _this.thickness
           );
-          _this.sendFunction({
-            t: _this.tool,
-            d: [currentPos.x, currentPos.y, _this.prevPos.x, _this.prevPos.y],
-            th: _this.thickness,
+          _this.sendFunction(MessageType.CREATE_OBJECT, {
+            objectType: _this.tool,
+            objectId: _this.drawId,
+            boardObject: {
+              objectId: _this.drawId,
+              ownerId: "???",
+              isLocked: false,
+              coordinates: {
+                x: currentPos.x,
+                y: currentPos.y,
+              },
+              colour: hexToRgb(_this.drawcolor),
+            },
           });
         }
       }
@@ -582,7 +633,7 @@ const whiteboard = {
       _this.prevPos = currentPos;
     });
 
-    ThrottlingService.throttle(currentPos, () => {
+    /*ThrottlingService.throttle(currentPos, () => {
       _this.lastPointerPosition = currentPos;
       _this.sendFunction({
         t: "cursor",
@@ -590,7 +641,7 @@ const whiteboard = {
         d: [currentPos.x, currentPos.y],
         username: _this.settings.username,
       });
-    });
+    });*/
   },
   triggerMouseOver: function () {
     var _this = this;
@@ -631,7 +682,7 @@ const whiteboard = {
     _this.svgContainer.find("line").remove();
     _this.svgContainer.find("rect").remove();
     _this.svgContainer.find("circle").remove();
-    _this.sendFunction({ t: "cursor", event: "out" });
+    /* _this.sendFunction({ t: "cursor", event: "out" });*/
   },
   redrawMouseCursor: function () {
     const _this = this;
@@ -651,7 +702,21 @@ const whiteboard = {
       var left = Math.round(p.left * 100) / 100;
       var top = Math.round(p.top * 100) / 100;
       _this.drawId++;
-      _this.sendFunction({ t: "eraseRec", d: [left, top, width, height] });
+      // erase rec
+      _this.sendFunction(MessageType.CREATE_OBJECT, {
+        objectType: _this.tool,
+        objectId: _this.drawId,
+        boardObject: {
+          objectId: _this.drawId,
+          ownerId: "???",
+          isLocked: false,
+          coordinates: {
+            x: currentPos.x,
+            y: currentPos.y,
+          },
+          colour: hexToRgb(_this.drawcolor),
+        },
+      });
       _this.eraseRec(left, top, width, height);
     });
     _this.mouseOverlay.find(".xCanvasBtn").click(); //Remove all current drops
@@ -686,11 +751,19 @@ const whiteboard = {
         _this.drawcolor,
         _this.thickness
       );
-      _this.sendFunction({
-        t: _this.tool,
-        d: _this.penSmoothLastCoords,
-        c: _this.drawcolor,
-        th: _this.thickness,
+      _this.sendFunction(MessageType.CREATE_OBJECT, {
+        objectType: _this.tool,
+        objectId: _this.drawId,
+        boardObject: {
+          objectId: _this.drawId,
+          ownerId: "???",
+          isLocked: false,
+          coordinates: {
+            x: currentPos.x,
+            y: currentPos.y,
+          },
+          colour: hexToRgb(_this.drawcolor),
+        },
       });
     }
   },
@@ -810,25 +883,11 @@ const whiteboard = {
     _this.canvas.height = _this.canvas.height;
     _this.imgContainer.empty();
     _this.textContainer.empty();
-    _this.sendFunction({ t: "clear" });
+    //TODO pas de clear whiteboard?
+    // _this.sendFunction(MessageType.CLEAR_WHITEBOARD, {});
     _this.drawBuffer = [];
     _this.undoBuffer = [];
     _this.drawId = 0;
-  },
-  setStrokeThickness(thickness) {
-    var _this = this;
-    _this.thickness = thickness;
-
-    if (
-      (_this.tool == "text" || this.tool === "stickynote") &&
-      _this.latestActiveTextBoxId
-    ) {
-      _this.sendFunction({
-        t: "setTextboxFontSize",
-        d: [_this.latestActiveTextBoxId, thickness],
-      });
-      _this.setTextboxFontSize(_this.latestActiveTextBoxId, thickness);
-    }
   },
   imgWithSrc(url) {
     return $(
@@ -912,11 +971,20 @@ const whiteboard = {
             rotationAngle
           );
         }
-        _this.sendFunction({
-          t: "addImgBG",
-          draw: draw,
-          url: finalURL,
-          d: [width, height, left, top, rotationAngle],
+        // add img bg
+        _this.sendFunction(MessageType.CREATE_OBJECT, {
+          objectType: _this.tool,
+          objectId: _this.drawId,
+          boardObject: {
+            objectId: _this.drawId,
+            ownerId: "???",
+            isLocked: false,
+            coordinates: {
+              x: currentPos.x,
+              y: currentPos.y,
+            },
+            colour: hexToRgb(_this.drawcolor),
+          },
         });
         _this.drawId++;
         imgDiv.remove();
@@ -1033,7 +1101,7 @@ const whiteboard = {
 
       const newPointerPosition = new Point(currX, currY);
 
-      ThrottlingService.throttle(newPointerPosition, () => {
+      /*ThrottlingService.throttle(newPointerPosition, () => {
         _this.lastPointerPosition = newPointerPosition;
         _this.sendFunction({
           t: "cursor",
@@ -1041,36 +1109,82 @@ const whiteboard = {
           d: [newPointerPosition.x, newPointerPosition.y],
           username: _this.settings.username,
         });
-      });
+      });*/
     });
     this.textContainer.append(textBox);
     textBox.draggable({
       handle: ".moveIcon",
       stop: function () {
         var textBoxPosition = textBox.position();
-        _this.sendFunction({
-          t: "setTextboxPosition",
-          d: [txId, textBoxPosition.top, textBoxPosition.left],
+        _this.sendFunction(MessageType.BOARD_UPDATE, {
+          objectType: _this.tool,
+          objectId: _this.drawId,
+          boardObject: {
+            objectId: _this.drawId,
+            ownerId: "???",
+            isLocked: false,
+            coordinates: {
+              x: currentPos.x,
+              y: currentPos.y,
+            },
+            colour: hexToRgb(_this.drawcolor),
+          },
         });
       },
       drag: function () {
         var textBoxPosition = textBox.position();
-        _this.sendFunction({
-          t: "setTextboxPosition",
-          d: [txId, textBoxPosition.top, textBoxPosition.left],
+        _this.sendFunction(MessageType.CREATE_OBJECT, {
+          objectType: _this.tool,
+          objectId: _this.drawId,
+          boardObject: {
+            objectId: _this.drawId,
+            ownerId: "???",
+            isLocked: false,
+            coordinates: {
+              x: currentPos.x,
+              y: currentPos.y,
+            },
+            colour: hexToRgb(_this.drawcolor),
+          },
         });
       },
     });
     textBox.find(".textContent").on("input", function () {
       var text = btoa(unescape(encodeURIComponent($(this).html()))); //Get html and make encode base64 also take care of the charset
-      _this.sendFunction({ t: "setTextboxText", d: [txId, text] });
+      _this.sendFunction(MessageType.CREATE_OBJECT, {
+        objectType: _this.tool,
+        objectId: _this.drawId,
+        boardObject: {
+          objectId: _this.drawId,
+          ownerId: "???",
+          isLocked: false,
+          coordinates: {
+            x: currentPos.x,
+            y: currentPos.y,
+          },
+          colour: hexToRgb(_this.drawcolor),
+        },
+      });
     });
     textBox
       .find(".removeIcon")
       .off("click")
       .click(function (e) {
         $("#" + txId).remove();
-        _this.sendFunction({ t: "removeTextbox", d: [txId] });
+        _this.sendFunction(MessageType.CREATE_OBJECT, {
+          objectType: _this.tool,
+          objectId: _this.drawId,
+          boardObject: {
+            objectId: _this.drawId,
+            ownerId: "???",
+            isLocked: false,
+            coordinates: {
+              x: currentPos.x,
+              y: currentPos.y,
+            },
+            colour: hexToRgb(_this.drawcolor),
+          },
+        });
         e.preventDefault();
         return false;
       });
@@ -1198,13 +1312,41 @@ const whiteboard = {
     });
   },
   undoWhiteboardClick: function () {
+    var _this = this;
     if (ReadOnlyService.readOnlyActive) return;
-    this.sendFunction({ t: "undo" });
+    _this.sendFunction(MessageType.CREATE_OBJECT, {
+      objectType: _this.tool,
+      objectId: _this.drawId,
+      boardObject: {
+        objectId: _this.drawId,
+        ownerId: "???",
+        isLocked: false,
+        coordinates: {
+          x: currentPos.x,
+          y: currentPos.y,
+        },
+        colour: hexToRgb(_this.drawcolor),
+      },
+    });
     this.undoWhiteboard();
   },
   redoWhiteboardClick: function () {
     if (ReadOnlyService.readOnlyActive) return;
-    this.sendFunction({ t: "redo" });
+    var _this = this;
+    _this.sendFunction(MessageType.CREATE_OBJECT, {
+      objectType: _this.tool,
+      objectId: _this.drawId,
+      boardObject: {
+        objectId: _this.drawId,
+        ownerId: "???",
+        isLocked: false,
+        coordinates: {
+          x: currentPos.x,
+          y: currentPos.y,
+        },
+        colour: hexToRgb(_this.drawcolor),
+      },
+    });
     this.redoWhiteboard();
   },
   setTool: function (tool) {
@@ -1228,9 +1370,19 @@ const whiteboard = {
       (_this.tool == "text" || this.tool === "stickynote") &&
       _this.latestActiveTextBoxId
     ) {
-      _this.sendFunction({
-        t: "setTextboxFontColor",
-        d: [_this.latestActiveTextBoxId, color],
+      _this.sendFunction(MessageType.CREATE_OBJECT, {
+        objectType: _this.tool,
+        objectId: _this.drawId,
+        boardObject: {
+          objectId: _this.drawId,
+          ownerId: "???",
+          isLocked: false,
+          coordinates: {
+            x: currentPos.x,
+            y: currentPos.y,
+          },
+          colour: hexToRgb(_this.drawcolor),
+        },
       });
       _this.setTextboxFontColor(_this.latestActiveTextBoxId, color);
     }
@@ -1523,7 +1675,7 @@ const whiteboard = {
     var _this = this;
     _this.loadDataInSteps(content, true, function (stepData) {
       if (
-        stepData["username"] == _this.settings.username &&
+        stepData["username"] === _this.settings.username &&
         _this.drawId < stepData["drawId"]
       ) {
         _this.drawId = stepData["drawId"] + 1;
@@ -1535,7 +1687,7 @@ const whiteboard = {
 
     function lData(index) {
       for (var i = index; i < content.length; i++) {
-        if (content[i]["t"] === "addImgBG" && content[i]["draw"] == "1") {
+        if (content[i]["t"] === "addImgBG" && content[i]["draw"] === "1") {
           _this.handleEventsAndData(content[i], isNewData, function () {
             callAfterEveryStep(content[i], i);
             lData(i + 1);
@@ -1562,16 +1714,31 @@ const whiteboard = {
       }
     });
   },
-  sendFunction: function (content) {
+  sendFunction: function (messageType, content) {
     //Sends every draw to server
     var _this = this;
-    content["wid"] = _this.settings.whiteboardId;
-    content["username"] = _this.settings.username;
-    content["drawId"] = _this.drawId;
+    content.wid = _this.settings.whiteboardId;
+    content.userid = _this.settings.userId;
+    content.drawId = _this.drawId;
 
-    var tool = content["t"];
+    var tool = content.type;
     if (_this.settings.sendFunction) {
-      _this.settings.sendFunction(content);
+      _this.settings.sendFunction(messageType, {
+        messageId: MessageHelper.generateId(),
+        userId: _this.settings.userId,
+        objectId: "",
+        objectType: ObjectType.STICKY_NOTE,
+        boardObject: {
+          objectId: "",
+          ownerId: _this.settings.userId,
+          isLocked: false,
+          coordinates: { x: 2, y: 3 },
+          text: "This is a test!",
+          font: "Comic Sans MS",
+          size: { x: 3, y: 4 },
+          colour: { r: 255, g: 255, b: 255 },
+        },
+      });
     }
     if (
       [
@@ -1660,6 +1827,21 @@ function testImage(url, callback, timeout) {
     img.src = "//!!!!/test.jpg";
     callback(false);
   }, timeout);
+}
+
+function deleteFromBuffer(objectId) {
+  this.buffer;
+}
+
+function hexToRgb(hex) {
+  var result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  return result
+    ? {
+        r: parseInt(result[1], 16),
+        g: parseInt(result[2], 16),
+        b: parseInt(result[3], 16),
+      }
+    : null;
 }
 
 export default whiteboard;

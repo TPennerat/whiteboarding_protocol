@@ -1,0 +1,9 @@
+{
+  "messageType": "JOIN_MEETING",
+  "message": {
+    "messageId": 123456,
+    "userId": "",
+    "meetingId": "dEiufboprzbE",
+    "pseudo": "Lewdroth"
+  }
+}

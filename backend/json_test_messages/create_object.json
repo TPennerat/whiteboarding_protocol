@@ -1,0 +1,19 @@
+{
+  "messageType": "CREATE_OBJECT",
+  "message": {
+    "messageId": 123456,
+    "userId": "Xv6QeKvo",
+    "objectId": "",
+    "objectType": "STICKY_NOTE",
+    "boardObject": {
+      "objectId": "",
+      "ownerId": "Xv6QeKvo",
+      "isLocked": false,
+      "coordinates": { "x": 2, "y": 3 },
+      "text": "This is a test!",
+      "font": "Comic Sans MS",
+      "size": { "x": 3, "y": 4 },
+      "colour": { "r": 255, "g": 255, "b": 255 }
+    }
+  }
+}

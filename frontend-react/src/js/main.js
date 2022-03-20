@@ -1,5 +1,4 @@
 import keymage from "keymage";
-import { io } from "socket.io-client";
 import whiteboard from "./whiteboard";
 import keybinds from "./keybinds";
 import Picker from "vanilla-picker";
@@ -7,91 +6,155 @@ import { dom } from "@fortawesome/fontawesome-svg-core";
 import shortcutFunctions from "./shortcutFunctions";
 import ReadOnlyService from "./services/ReadOnlyService";
 import InfoService from "./services/InfoService";
-import { getSubDir } from "./utils";
 import ConfigService from "./services/ConfigService";
-import { v4 as uuidv4 } from "uuid";
+import MessageType from "./messageType";
+import StringifyHelper from "./services/StringifyHelper";
+import MessageHelper from "./services/MessageHelper";
 
 const pdfjsLib = require("pdfjs-dist");
 
 const urlParams = new URLSearchParams(window.location.search);
-let whiteboardId = urlParams.get("whiteboardid");
-const randomid = urlParams.get("randomid");
+let meetingId = urlParams.get("meetingId");
 
-if (randomid) {
-  whiteboardId = uuidv4();
-  urlParams.delete("randomid");
-  window.location.search = urlParams;
-}
+// TODO à voir si thibaut peut handle le encode uri pour soucis de sécu
+// meetingId = unescape(encodeURIComponent(meetingId)).replace(
+//   /[^a-zA-Z0-9\-]/g,
+//   ""
+// );
 
-if (!whiteboardId) {
-  whiteboardId = "myNewWhiteboard";
-}
-
-whiteboardId = unescape(encodeURIComponent(whiteboardId)).replace(
-  /[^a-zA-Z0-9\-]/g,
-  ""
-);
-
-if (urlParams.get("whiteboardid") !== whiteboardId) {
-  urlParams.set("whiteboardid", whiteboardId);
-  window.location.search = urlParams;
-}
-
-const myUsername =
-  urlParams.get("username") || "unknown" + (Math.random() + "").substring(2, 6);
-const accessToken = urlParams.get("accesstoken") || "";
-const copyfromwid = urlParams.get("copyfromwid") || "";
-
-// Custom Html Title
-const title = urlParams.get("title");
-if (title) {
-  document.title = decodeURIComponent(title);
-}
-
-const subdir = getSubDir();
-let signaling_socket;
+document.title = "tat.io";
+let socketjs = null;
+let ackWaitingIDs = [];
+let userId = null;
 
 function main() {
-  signaling_socket = io("", { path: subdir + "/ws-api" }); // Connect even if we are in a subdir behind a reverse proxy
+  socketjs = new WebSocket("ws://192.168.1.100:4444");
 
-  signaling_socket.on("connect", function () {
+  socketjs.addEventListener("open", function (event) {
     console.log("Websocket connected!");
-
-    signaling_socket.on("whiteboardConfig", (serverResponse) => {
-      ConfigService.initFromServer(serverResponse);
-      // Inti whiteboard only when we have the config from the server
-      // initConnection();
-      initWhiteboard();
-    });
-
-    signaling_socket.on("whiteboardInfoUpdate", (info) => {
-      InfoService.updateInfoFromServer(info);
-      whiteboard.updateSmallestScreenResolution();
-    });
-
-    signaling_socket.on("drawToWhiteboard", function (content) {
-      whiteboard.handleEventsAndData(content, true);
-      InfoService.incrementNbMessagesReceived();
-    });
-
-    signaling_socket.on("refreshUserBadges", function () {
-      whiteboard.refreshUserBadges();
-    });
-
-    let accessDenied = false;
-    signaling_socket.on("wrongAccessToken", function () {
-      if (!accessDenied) {
-        accessDenied = true;
-        showBasicAlert("Access denied! Wrong accessToken!");
-      }
-    });
-
-    signaling_socket.emit("joinWhiteboard", {
-      wid: whiteboardId,
-      at: accessToken,
-      windowWidthHeight: { w: $(window).width(), h: $(window).height() },
-    });
+    localStorage.setItem("pseudo", "tp");
+    let meetingRequest;
+    let userWantsToJoin = urlParams.get("join") === "true"; // false;
+    if (userWantsToJoin) {
+      let meetingByUser = urlParams.get("meetingId"); // "inpututil";
+      meetingRequest = StringifyHelper.stringify(MessageType.JOIN_MEETING, {
+        messageId: MessageHelper.generateId(),
+        meetingId: meetingByUser,
+        pseudo: "pseudo2",
+      });
+      meetingId = meetingByUser;
+    } else {
+      meetingRequest = StringifyHelper.stringify(MessageType.CREATE_MEETING, {
+        messageId: MessageHelper.generateId(),
+        pseudo: localStorage.getItem("pseudo"),
+      });
+    }
+    socketjs.send(meetingRequest);
   });
+
+  socketjs.addEventListener("message", function (event) {
+    const response = JSON.parse(event.data);
+    console.log("Réponse serveur:\n", response);
+    switch (response.messageType) {
+      case MessageType.MEETING_CREATED:
+        userId = response.message.userId;
+        meetingId = response.message.meetingId;
+        ConfigService.initFromServer({
+          common: {
+            onWhiteboardLoad: {
+              setReadOnly: false,
+              displayInfo: false,
+            },
+            showSmallestScreenIndicator: true,
+            imageDownloadFormat: "png",
+            imageURL: "",
+            drawBackgroundGrid: false,
+            backgroundGridImage: "bg_grid.png",
+            performance: {
+              refreshInfoFreq: 5,
+              pointerEventsThrottling: [
+                {
+                  fromUserCount: 0,
+                  minDistDelta: 1,
+                  maxFreq: 30,
+                },
+                {
+                  fromUserCount: 10,
+                  minDistDelta: 5,
+                  maxFreq: 10,
+                },
+              ],
+            },
+          },
+          whiteboardSpecific: {
+            correspondingReadOnlyWid: "737e8b72-0e15-4075-9dd5-9cb4c09909b0",
+            isReadOnly: false,
+          },
+        });
+        initWhiteboard();
+        whiteboard.loadData({});
+        break;
+      case MessageType.MEETING_JOINED:
+        userId = response.message.userId;
+        initWhiteboard();
+        break;
+      case MessageType.BOARD_UPDATE:
+        whiteboard.loadData(response);
+      default:
+        showBasicAlert("Unknown response" + event.data);
+    }
+  });
+
+  // when user disconnect suddenly (aka close the tab or browser)
+  window.addEventListener("beforeunload", function (e) {
+    socketjs.close();
+  });
+
+  //TODO if user click on leave meeting button
+  /*socketjs.send(
+    StringifyHelper.stringify(MessageType.LEAVE_MEETING, {
+      messageId: MessageHelper.generateId(),
+      userId: userId,
+      meetingId: meetingId,
+    })
+  );*/
+
+  /*socket.on("something", function () {
+
+
+      socket.on("whiteboardConfig", (serverResponse) => {
+        ConfigService.initFromServer(serverResponse);
+        // Inti whiteboard only when we have the config from the server
+        initWhiteboard();
+      });
+
+      socket.on("whiteboardInfoUpdate", (info) => {
+        InfoService.updateInfoFromServer(info);
+        whiteboard.updateSmallestScreenResolution();
+      });
+
+      socket.on("drawToWhiteboard", function (content) {
+        whiteboard.handleEventsAndData(content, true);
+        InfoService.incrementNbMessagesReceived();
+      });
+
+      socket.on("refreshUserBadges", function () {
+        whiteboard.refreshUserBadges();
+      });
+
+      let accessDenied = false;
+      socket.on("wrongAccessToken", function () {
+        if (!accessDenied) {
+          accessDenied = true;
+          showBasicAlert("Access denied! Wrong accessToken!");
+        }
+      });
+
+      socket.emit("joinWhiteboard", {
+        wid: whiteboardId,
+        windowWidthHeight: { w: $(window).width(), h: $(window).height() },
+      });
+    });*/
 }
 
 function showBasicAlert(html, newOptions) {
@@ -154,53 +217,28 @@ function initConnection() {
 function initWhiteboard() {
   $(document).ready(function () {
     // by default set in readOnly mode
-    ReadOnlyService.activateReadOnlyMode();
+    // ReadOnlyService.activateReadOnlyMode();
 
     if (urlParams.get("webdav") === "true") {
       $("#uploadWebDavBtn").show();
     }
-
     whiteboard.loadWhiteboard("#whiteboardContainer", {
       //Load the whiteboard
-      whiteboardId: whiteboardId,
-      username: btoa(encodeURIComponent(myUsername)),
+      meetingId: meetingId,
+      userId: userId,
       backgroundGridUrl: "./images/" + ConfigService.backgroundGridImage,
-      sendFunction: function (content) {
-        if (ReadOnlyService.readOnlyActive) return;
-        //ADD IN LATER THROUGH CONFIG
-        // if (content.t === 'cursor') {
-        //     if (whiteboard.drawFlag) return;
-        // }
-        content["at"] = accessToken;
-        signaling_socket.emit("drawToWhiteboard", content);
+      sendFunction: function (messageType, content) {
+        socketjs.send(StringifyHelper.stringify(messageType, content));
         InfoService.incrementNbMessagesSent();
       },
     });
 
-    // request whiteboard from server
-    $.get(subdir + "/api/loadwhiteboard", {
-      wid: whiteboardId,
-      at: accessToken,
-    }).done(function (data) {
-      console.log(data);
-      whiteboard.loadData(data);
-      if (copyfromwid && data.length == 0) {
-        //Copy from witheboard if current is empty and get parameter is given
-        $.get(subdir + "/api/loadwhiteboard", {
-          wid: copyfromwid,
-          at: accessToken,
-        }).done(function (data) {
-          whiteboard.loadData(data);
-        });
-      }
-    });
-
-    $(window).resize(function () {
+    /* $(window).resize(function () {
       signaling_socket.emit("updateScreenResolution", {
         at: accessToken,
         windowWidthHeight: { w: $(window).width(), h: $(window).height() },
       });
-    });
+    });*/
 
     /*----------------/
         Whiteboard actions
@@ -930,7 +968,8 @@ function initWhiteboard() {
 
     if (process.env.NODE_ENV === "production") {
       if (ConfigService.readOnlyOnWhiteboardLoad)
-        ReadOnlyService.activateReadOnlyMode();
+        // ReadOnlyService.activateReadOnlyMode();
+        console.log("readonly?");
       else ReadOnlyService.deactivateReadOnlyMode();
 
       if (ConfigService.displayInfoOnWhiteboardLoad) InfoService.displayInfo();
@@ -942,7 +981,7 @@ function initWhiteboard() {
     }
 
     // In any case, if we are on read-only whiteboard we activate read-only mode
-    if (ConfigService.isReadOnly) ReadOnlyService.activateReadOnlyMode();
+    // if (ConfigService.isReadOnly) ReadOnlyService.activateReadOnlyMode();
 
     $("body").show();
   });
@@ -965,6 +1004,7 @@ function initWhiteboard() {
     false
   );
 
+  //TODO need to see this
   function uploadImgAndAddToWhiteboard(base64data) {
     const date = +new Date();
     $.ajax({
@@ -988,40 +1028,6 @@ function initWhiteboard() {
       },
       error: function (err) {
         showBasicAlert("Failed to upload frame: " + JSON.stringify(err));
-      },
-    });
-  }
-
-  function saveWhiteboardToWebdav(base64data, webdavaccess, callback) {
-    var date = +new Date();
-    $.ajax({
-      type: "POST",
-      url:
-        document.URL.substr(0, document.URL.lastIndexOf("/")) + "/api/upload",
-      data: {
-        imagedata: base64data,
-        wid: whiteboardId,
-        date: date,
-        at: accessToken,
-        webdavaccess: JSON.stringify(webdavaccess),
-      },
-      success: function (msg) {
-        showBasicAlert("Whiteboard was saved to Webdav!", {
-          headercolor: "#5c9e5c",
-        });
-        console.log("Image uploaded to webdav!");
-        callback();
-      },
-      error: function (err) {
-        console.error(err);
-        if (err.status == 403) {
-          showBasicAlert(
-            "Could not connect to Webdav folder! Please check the credentials and paths and try again!"
-          );
-        } else {
-          showBasicAlert("Unknown Webdav error! ", err);
-        }
-        callback(err);
       },
     });
   }
