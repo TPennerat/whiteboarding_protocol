@@ -11,7 +11,7 @@ public class ChangeBroadcast extends Answer {
 
     @JsonCreator
     public ChangeBroadcast(@JsonProperty("messageId") int messageId, @JsonProperty("boardObject") BoardObject boardObject) {
-        super(messageId, 401);
+        super(messageId, 301);
         this.boardObject = boardObject;
     }
 

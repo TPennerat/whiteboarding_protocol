@@ -6,6 +6,6 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 public class ChangeNotAllowedError extends Error {
     @JsonCreator
     public ChangeNotAllowedError(@JsonProperty("messageId") int messageId) {
-        super(messageId, 220, "Change not allowed for this type of object.");
+        super(messageId, 436, "Change not allowed for this type of object.");
     }
 }

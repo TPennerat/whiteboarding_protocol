@@ -10,7 +10,7 @@ public class UserLeftBroadcast extends Answer {
 
     @JsonCreator
     public UserLeftBroadcast(@JsonProperty("messageId") int messageId, @JsonProperty("pseudo") String pseudo) {
-        super(messageId, 405);
+        super(messageId, 304);
         this.pseudo = pseudo;
     }
 

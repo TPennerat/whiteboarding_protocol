@@ -6,6 +6,6 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 public class NonExistentMeetingError extends Error {
     @JsonCreator
     public NonExistentMeetingError(@JsonProperty("messageId") int messageId) {
-        super(messageId, 206,"Meeting doesn't exist.");
+        super(messageId, 403,"Meeting doesn't exist.");
     }
 }
