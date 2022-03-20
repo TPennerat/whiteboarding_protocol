@@ -16,9 +16,7 @@ import fi.whiteboardaalto.messages.server.ack.session.MeetingCreated;
 import fi.whiteboardaalto.messages.server.ack.session.MeetingJoined;
 import fi.whiteboardaalto.messages.server.ack.session.MeetingLeft;
 import fi.whiteboardaalto.messages.server.errors.*;
-import fi.whiteboardaalto.messages.server.update.ChangeBroadcast;
-import fi.whiteboardaalto.messages.server.update.DeleteBroadcast;
-import fi.whiteboardaalto.messages.server.update.UserBroadcast;
+import fi.whiteboardaalto.messages.server.update.*;
 import fi.whiteboardaalto.objects.BoardObject;
 import fi.whiteboardaalto.objects.Coordinates;
 import fi.whiteboardaalto.objects.StickyNote;
@@ -111,7 +109,7 @@ public class WhiteboardServer extends WebSocketServer {
                         meeting = findMeetingByUserId(existingUser.getUserId());
                         if(meeting == null) {System.err.println("[*] Error: User is not in any meeting."); break;}
                         int messageIdAck = createObject.getMessageId()+1;
-                        if(!meeting.getWhiteboard().coordinatesAreBusy(stickyNote)) {
+                        if(!meeting.getWhiteboard().coordinatesAreBusyByObject(stickyNote)) {
                             String objectId = idGenerator(IdType.OBJECT_ID);
                             // Preparing the sticky note before adding it in the objects list of the meeting
                             stickyNote.setObjectId(objectId);
@@ -129,7 +127,7 @@ public class WhiteboardServer extends WebSocketServer {
                             // Preparing the broadcast message
                             ChangeBroadcast changeBroadcast = new ChangeBroadcast(messageIdGenerator(), stickyNote);
                             broadcastMessage(changeBroadcast, conn, MessageType.CHANGE_BROADCAST);
-                        } else { sendMessage(conn, new BusyCoordinatesError(messageIdAck), MessageType.OBJECT_CREATED); }
+                        } else { sendMessage(conn, new BusyCoordinatesError(messageIdAck), MessageType.BUSY_COORDINATES_ERROR); }
                         break;
                     case IMAGE:
                         break;
@@ -164,8 +162,16 @@ public class WhiteboardServer extends WebSocketServer {
                             User newUser = new User(idGenerator(IdType.USER_ID), joinMeeting.getPseudo());
                             meeting.getUsers().add(newUser);
                             users.put(conn, newUser);
+                            // Sending the confirmation the meeting was joined
                             MeetingJoined meetingJoined = new MeetingJoined(joinMeeting.getMessageId()+1, meeting.getMeetingId(), newUser.getUserId());
                             sendMessage(conn, meetingJoined, MessageType.MEETING_JOINED);
+                            // We also need to send the user all the whiteboard objects
+                            List<BoardUpdateComponent> components = meeting.getWhiteboard().getAllObjects();
+                            BoardUpdate boardUpdate = new BoardUpdate(
+                                    joinMeeting.getMessageId()+2,
+                                    components
+                            );
+                            sendMessage(conn, boardUpdate, MessageType.BOARD_UPDATE);
                             // Broadcasting the new user to the existing users
                             UserBroadcast userBroadcast = new UserBroadcast(messageIdGenerator(), newUser.getPseudo());
                             broadcastMessage(userBroadcast, conn, MessageType.USER_BROADCAST);
@@ -275,15 +281,21 @@ public class WhiteboardServer extends WebSocketServer {
                 existingUser = users.get(conn);
                 meeting = findMeetingByUserId(existingUser.getUserId());
                 boardObject = meeting.getWhiteboard().getBoardObjectByObjectId(editObject.getObjectId());
-                // We need to check if the object is selected by the user already
+                // We need to check first if the object is selected by the user already
                 if(!boardObject.getIsLocked() || !boardObject.getOwnerId().equals(editObject.getUserId())) {
                     sendMessage(conn, new ObjectNotOwnedError(editObject.getMessageId()+1), MessageType.OBJECT_NOT_OWNED_ERROR);
                     break;
                 }
-                // If we got here, it means the user is allowed to perform the action, as it owns the object
+                // If we got here, it means that:
+                //      => The user is allowed to perform the action, as it owns the object.
                 switch(editObject.getEditType()) {
                     case POSITION_CHANGE:
                         PositionChange positionChange = (PositionChange) editObject.getChange();
+                        // We need to check also if the new position chosen is not busy (occupied by another object).
+                        if(meeting.getWhiteboard().coordinatesAreBusy(boardObject.getCoordinates())) {
+                            sendMessage(conn, new BusyCoordinatesError(editObject.getMessageId()+1), MessageType.BUSY_COORDINATES_ERROR);
+                            break;
+                        }
                         // Changing the current position of the object
                         boardObject.setCoordinates(positionChange.getNewPosition());
                         // Sending confirmation of the change to the source

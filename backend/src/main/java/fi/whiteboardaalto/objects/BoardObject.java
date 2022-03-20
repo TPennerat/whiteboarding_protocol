@@ -77,4 +77,13 @@ public class BoardObject {
         this.colour = colour;
     }
 
+    public static ObjectType objectTypeMapper(String className) {
+        return switch (className) {
+            case "StickyNote" -> ObjectType.STICKY_NOTE;
+            case "Image" -> ObjectType.IMAGE;
+            case "Drawing" -> ObjectType.DRAWING;
+            default -> null;
+        };
+    }
+
 }

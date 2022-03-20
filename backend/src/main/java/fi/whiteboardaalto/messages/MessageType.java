@@ -20,6 +20,7 @@ public enum MessageType {
     // Update messages
     CHANGE_BROADCAST,
     USER_BROADCAST,
+    BOARD_UPDATE,
     DELETE_BROADCAST,
     // Session-related message
     MEETING_LEFT,
@@ -38,6 +39,7 @@ public enum MessageType {
     MEETING_ALREADY_CREATED_ERROR,
     OBJECT_NOT_OWNED_ERROR,
     OBJECT_NOT_SELECTED_ERROR,
+    BUSY_COORDINATES_ERROR,
     // ACK MESSAGES
     OBJECT_CREATED,
     OBJECT_SELECTED,
