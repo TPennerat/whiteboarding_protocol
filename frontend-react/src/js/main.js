@@ -29,7 +29,7 @@ let userId = null;
 let drawBufferIndex = 0;
 
 function main() {
-  socketjs = new WebSocket("ws://localhost:4444");
+  socketjs = new WebSocket("ws://localhost:44567");
 
   socketjs.addEventListener("open", function (event) {
     console.log("Websocket connected!");
