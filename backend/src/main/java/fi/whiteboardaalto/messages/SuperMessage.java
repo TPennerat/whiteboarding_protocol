@@ -5,10 +5,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 
-import fi.whiteboardaalto.messages.client.object.CreateObject;
-import fi.whiteboardaalto.messages.client.object.DeleteObject;
-import fi.whiteboardaalto.messages.client.object.EditObject;
-import fi.whiteboardaalto.messages.client.object.SelectObject;
+import fi.whiteboardaalto.messages.client.object.*;
 import fi.whiteboardaalto.messages.client.session.CreateMeeting;
 import fi.whiteboardaalto.messages.client.session.JoinMeeting;
 import fi.whiteboardaalto.messages.client.session.LeaveMeeting;
@@ -42,6 +39,7 @@ public class SuperMessage {
             // Client messages
             @JsonSubTypes.Type(value = CreateObject.class, name = "CREATE_OBJECT"),
             @JsonSubTypes.Type(value = SelectObject.class, name = "SELECT"),
+            @JsonSubTypes.Type(value = UnselectObject.class, name = "UNSELECT"),
             @JsonSubTypes.Type(value = DeleteObject.class, name = "DELETE"),
             @JsonSubTypes.Type(value = EditObject.class, name = "EDIT"),
             @JsonSubTypes.Type(value = CreateMeeting.class, name = "CREATE_MEETING"),

@@ -12,6 +12,7 @@ import fi.whiteboardaalto.messages.client.object.*;
 import fi.whiteboardaalto.messages.client.object.change.ColourChange;
 import fi.whiteboardaalto.messages.client.object.change.CommentChange;
 import fi.whiteboardaalto.messages.client.object.change.PositionChange;
+import fi.whiteboardaalto.messages.client.object.change.TextChange;
 import fi.whiteboardaalto.messages.client.session.CreateMeeting;
 import fi.whiteboardaalto.messages.client.session.JoinMeeting;
 import fi.whiteboardaalto.messages.client.session.LeaveMeeting;
@@ -28,6 +29,7 @@ import org.java_websocket.handshake.ClientHandshake;
 import org.java_websocket.server.WebSocketServer;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.w3c.dom.Text;
 
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
@@ -230,6 +232,7 @@ public class WhiteboardServer extends WebSocketServer {
                         String checksum = generateSha256Hash(objectSerialize(boardObject));
                         ObjectSelected objectSelected = new ObjectSelected(selectObject.getMessageId()+1, checksum);
                         sendMessage(conn, objectSelected, MessageType.OBJECT_SELECTED);
+                        ConsoleLogger.loggConsole("[i] The boardObject " + boardObject.getObjectId() + " has been selected by " + existingUser.getPseudo(), Colour.WHITE);
                         // Broadcasting the object with the new modifications
                         ChangeBroadcast changeBroadcast = new ChangeBroadcast(selectObject.getMessageId()+1, boardObject);
                         broadcastMessageToOthers(changeBroadcast, conn, MessageType.CHANGE_BROADCAST);
@@ -258,6 +261,7 @@ public class WhiteboardServer extends WebSocketServer {
                             String checksum = generateSha256Hash(objectSerialize(boardObject));
                             ObjectUnselected objectUnselected = new ObjectUnselected(unselectObject.getMessageId() + 1, checksum);
                             sendMessage(conn, objectUnselected, MessageType.OBJECT_UNSELECTED);
+                            ConsoleLogger.loggConsole("[i] The boardObject " + boardObject.getObjectId() + " has been unselected by " + existingUser.getPseudo(), Colour.WHITE);
                             // Broadcasting the object with the new modifications
                             ChangeBroadcast changeBroadcast = new ChangeBroadcast(messageIdGenerator(), boardObject);
                             broadcastMessageToOthers(changeBroadcast, conn, MessageType.CHANGE_BROADCAST);
@@ -288,6 +292,7 @@ public class WhiteboardServer extends WebSocketServer {
                             // Broadcasting the object with the new modifications
                             DeleteBroadcast deleteBroadcast = new DeleteBroadcast(messageIdGenerator(), deleteObject.getObjectId());
                             broadcastMessageToOthers(deleteBroadcast, conn, MessageType.DELETE_BROADCAST);
+                            ConsoleLogger.loggConsole("[i] The boardObject " + boardObject.getObjectId() + " has been deleted by " + existingUser.getPseudo() + ".", Colour.WHITE);
                             ConsoleLogger.loggConsole(toString(), Colour.DEFAULT);
                         } else sendMessage(conn, new ObjectNotOwnedError(deleteObject.getMessageId()+1), MessageType.OBJECT_NOT_OWNED_ERROR);
                     } else sendMessage(conn, new ObjectNotSelectedError(deleteObject.getMessageId()+1), MessageType.OBJECT_NOT_SELECTED_ERROR);
@@ -323,6 +328,7 @@ public class WhiteboardServer extends WebSocketServer {
                         checksum = generateSha256Hash(objectSerialize(boardObject));
                         PositionChanged positionChanged = new PositionChanged(editObject.getMessageId()+1, checksum);
                         sendMessage(conn, positionChanged, MessageType.POSITION_CHANGED);
+                        ConsoleLogger.loggConsole("[i] The boardObject " + boardObject.getObjectId() + " has been edited (position changed) by " + existingUser.getPseudo() + ".", Colour.WHITE);
                         break;
                     case COLOUR_CHANGE:
                         if(boardObject instanceof Image) {
@@ -334,6 +340,7 @@ public class WhiteboardServer extends WebSocketServer {
                         checksum = generateSha256Hash(objectSerialize(boardObject));
                         ColourChanged colourChanged = new ColourChanged(editObject.getMessageId()+1, checksum);
                         sendMessage(conn, colourChanged, MessageType.COLOR_CHANGED);
+                        ConsoleLogger.loggConsole("[i] The boardObject " + boardObject.getObjectId() + " has been edited (colour changed) by " + existingUser.getPseudo() + ".", Colour.WHITE);
                         break;
                     case COMMENT_CHANGE:
                         if(boardObject instanceof Drawing || boardObject instanceof StickyNote) {
@@ -346,6 +353,20 @@ public class WhiteboardServer extends WebSocketServer {
                         checksum = generateSha256Hash(objectSerialize(image));
                         CommentChanged commentChanged = new CommentChanged(editObject.getMessageId()+1, checksum);
                         sendMessage(conn, commentChanged, MessageType.COMMENT_CHANGED);
+                        ConsoleLogger.loggConsole("[i] The " + image.getClass().getSimpleName() + " " + boardObject.getObjectId() + " has been edited (comment changed) by " + existingUser.getPseudo() + ".", Colour.WHITE);
+                        break;
+                    case TEXT_CHANGE:
+                        if(boardObject instanceof Drawing || boardObject instanceof Image) {
+                            sendMessage(conn, new ChangeNotAllowedError(editObject.getMessageId()+1), MessageType.CHANGE_NOT_ALLOWED_ERROR);
+                            break;
+                        }
+                        TextChange textChange = (TextChange) editObject.getChange();
+                        StickyNote stickyNote = (StickyNote) boardObject;
+                        stickyNote.setText(textChange.getNewText());
+                        checksum = generateSha256Hash(objectSerialize(stickyNote));
+                        TextChanged textChanged = new TextChanged(editObject.getMessageId()+1, checksum);
+                        sendMessage(conn, textChanged, MessageType.TEXT_CHANGED);
+                        ConsoleLogger.loggConsole("[i] The " + stickyNote.getClass().getSimpleName() + " " + boardObject.getObjectId() + " has been edited (text changed) by " + existingUser.getPseudo() + ".", Colour.WHITE);
                         break;
                 }
                 ChangeBroadcast changeBroadcast = new ChangeBroadcast(messageIdGenerator(), boardObject);
@@ -359,7 +380,7 @@ public class WhiteboardServer extends WebSocketServer {
 
     @Override
     public void onStart() {
-        ConsoleLogger.loggConsole("[i] Starting the server...", Colour.WHITE);
+        ConsoleLogger.loggConsole("[i] Starting the server on port " + getPort() + "...", Colour.WHITE);
     }
 
     @Override
