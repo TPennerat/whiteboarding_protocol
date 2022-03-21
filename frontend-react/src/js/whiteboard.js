@@ -60,6 +60,7 @@ const whiteboard = {
   lastPointerSentTime: 0,
   changeId: 0,
   changeIdToBeAck: 1,
+  drawBufferId: 0,
   /**
    * @type Point
    */
@@ -487,22 +488,28 @@ const whiteboard = {
       const fontsize = _this.thickness * 0.5;
       const txId = "tx" + +new Date();
       const isStickyNote = _this.tool === "stickynote";
-      _this.sendFunction(MessageType.CREATE_OBJECT, {
-        messageId: MessageHelper.generateId(),
-        userId: _this.settings.userId,
-        objectId: "",
-        objectType: isStickyNote ? ObjectType.STICKY_NOTE : ObjectType.TEXT_BOX,
-        boardObject: {
+      _this.sendFunction(
+        MessageType.CREATE_OBJECT,
+        {
+          messageId: MessageHelper.generateId(),
+          userId: _this.settings.userId,
           objectId: "",
-          ownerId: _this.settings.userId,
-          isLocked: true,
-          coordinates: { x: currentPos.x, y: currentPos.y },
-          text: "caca",
-          font: "Comic Sans MS",
-          size: { x: 3, y: 4 },
-          colour: hexToRgb("#ff7eb9"),
+          objectType: isStickyNote
+            ? ObjectType.STICKY_NOTE
+            : ObjectType.TEXT_BOX,
+          boardObject: {
+            objectId: "",
+            ownerId: _this.settings.userId,
+            isLocked: true,
+            coordinates: { x: currentPos.x, y: currentPos.y },
+            text: "",
+            font: "Comic Sans MS",
+            size: { x: 1, y: 1 },
+            colour: hexToRgb("#ff7eb9"),
+          },
         },
-      });
+        "addTextBox"
+      );
       _this.addTextBox(
         _this.drawcolor,
         _this.textboxBackgroundColor,
@@ -511,7 +518,8 @@ const whiteboard = {
         currentPos.y,
         txId,
         isStickyNote,
-        true
+        true,
+        _this.drawBufferId
       );
     });
   },
@@ -1059,11 +1067,10 @@ const whiteboard = {
     top,
     txId,
     isStickyNote,
-    newLocalBox
+    newLocalBox,
+    drawBufferId
   ) {
-    console.log(textcolor, textboxBackgroundColor);
     var _this = this;
-    console.log(isStickyNote);
     var cssclass = "textBox";
     if (isStickyNote) {
       cssclass += " stickyNote";
@@ -1128,7 +1135,7 @@ const whiteboard = {
         _this.sendFunction(MessageType.EDIT, {
           messageId: MessageHelper.generateId(),
           userId: _this.settings.userId,
-          objectId: txId,
+          objectId: _this.drawBuffer[drawBufferId].objectId,
           editType: MessageType.POSITION_CHANGE,
           change: {
             changeId: _this.changeId,
@@ -1145,7 +1152,7 @@ const whiteboard = {
         _this.sendFunction(MessageType.EDIT, {
           messageId: MessageHelper.generateId(),
           userId: _this.settings.userId,
-          objectId: txId,
+          objectId: _this.drawBuffer[drawBufferId].objectId,
           editType: MessageType.POSITION_CHANGE,
           change: {
             changeId: _this.changeId,
@@ -1184,7 +1191,7 @@ const whiteboard = {
         _this.sendFunction(MessageType.DELETE, {
           messageId: MessageHelper.generateId(),
           userId: _this.settings.userId,
-          objectId: txId,
+          objectId: _this.drawBuffer[drawBufferId].objectId,
         });
         e.preventDefault();
         return false;
@@ -1715,11 +1722,10 @@ const whiteboard = {
       }
     });
   },
-  sendFunction: function (messageType, content) {
+  sendFunction: function (messageType, content, tool) {
     //Sends every draw to server
     var _this = this;
 
-    var tool = content.type;
     if (_this.settings.sendFunction) {
       _this.settings.sendFunction(messageType, content);
     }
