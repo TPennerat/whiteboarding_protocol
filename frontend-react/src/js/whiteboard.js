@@ -458,7 +458,7 @@ const whiteboard = {
                   x: currentPos.x,
                   y: currentPos.y,
                 },
-                colour: hexToRgb(_this.drawcolor),
+                colour: _this.hexToRgb(_this.drawcolor),
               },
             });
             _this.dragCanvasRectContent(left, top, leftT, topT, width, height);
@@ -504,7 +504,7 @@ const whiteboard = {
             text: "",
             font: "Comic Sans MS",
             size: { x: 1, y: 1 },
-            colour: hexToRgb("#ff7eb9"),
+            colour: _this.hexToRgb("#ff7eb9"),
           },
         },
         "addTextBox"
@@ -986,20 +986,15 @@ const whiteboard = {
             rotationAngle
           );
         }
+
+        console.log(finalURL);
+
         // add img bg
-        _this.sendFunction(MessageType.CREATE_OBJECT, {
-          objectType: _this.tool,
-          objectId: _this.drawId,
-          boardObject: {
-            objectId: _this.drawId,
-            ownerId: "???",
-            isLocked: false,
-            coordinates: {
-              x: currentPos.x,
-              y: currentPos.y,
-            },
-            colour: hexToRgb(_this.drawcolor),
-          },
+        _this.sendFunction({
+          t: "addImgBG",
+          draw: draw,
+          url: finalURL,
+          d: [width, height, left, top, rotationAngle],
         });
         _this.drawId++;
         imgDiv.remove();
@@ -1780,6 +1775,16 @@ const whiteboard = {
       _this.mouseOverlay.css({ cursor: "crosshair" });
     }
   },
+  hexToRgb(hex) {
+    var result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    return result
+      ? {
+          r: parseInt(result[1], 16),
+          g: parseInt(result[2], 16),
+          b: parseInt(result[3], 16),
+        }
+      : null;
+  },
 };
 
 function lanczosKernel(x) {
@@ -1837,17 +1842,6 @@ function testImage(url, callback, timeout) {
 
 function deleteFromBuffer(objectId) {
   this.buffer;
-}
-
-function hexToRgb(hex) {
-  var result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-  return result
-    ? {
-        r: parseInt(result[1], 16),
-        g: parseInt(result[2], 16),
-        b: parseInt(result[3], 16),
-      }
-    : null;
 }
 
 export default whiteboard;

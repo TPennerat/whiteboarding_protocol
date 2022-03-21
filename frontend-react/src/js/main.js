@@ -10,6 +10,7 @@ import ConfigService from "./services/ConfigService";
 import MessageType from "./messageType";
 import StringifyHelper from "./services/StringifyHelper";
 import MessageHelper from "./services/MessageHelper";
+import ObjectType from "./objectType";
 
 const pdfjsLib = require("pdfjs-dist");
 
@@ -752,7 +753,7 @@ function initWhiteboard() {
             reader.readAsDataURL(blob);
             reader.onloadend = function () {
               const base64data = reader.result;
-              uploadImgAndAddToWhiteboard(base64data);
+              uploadImgAndAddToWhiteboard(base64data, filename);
             };
           } else if (isPDFFileName(filename)) {
             //Handle PDF Files
@@ -1051,31 +1052,33 @@ function initWhiteboard() {
   );
 
   //TODO need to see this
-  function uploadImgAndAddToWhiteboard(base64data) {
+  function uploadImgAndAddToWhiteboard(base64data, filename) {
     const date = +new Date();
-    $.ajax({
-      type: "POST",
-      url:
-        document.URL.substr(0, document.URL.lastIndexOf("/")) + "/api/upload",
-      data: {
-        imagedata: base64data,
-        wid: whiteboardId,
-        date: date,
-        at: accessToken,
-      },
-      success: function (msg) {
-        const { correspondingReadOnlyWid } = ConfigService;
-        const filename = `${correspondingReadOnlyWid}_${date}.png`;
-        const rootUrl = document.URL.substr(0, document.URL.lastIndexOf("/"));
-        whiteboard.addImgToCanvasByUrl(
-          `${rootUrl}/uploads/${correspondingReadOnlyWid}/${filename}`
-        ); //Add image to canvas
-        console.log("Image uploaded!");
-      },
-      error: function (err) {
-        showBasicAlert("Failed to upload frame: " + JSON.stringify(err));
-      },
-    });
+    console.log(filename);
+    socketjs.send(
+      StringifyHelper.stringify(MessageType.CREATE_OBJECT, {
+        messageId: MessageHelper.generateId(),
+        userId: userId,
+        objectId: "",
+        objectType: ObjectType.IMAGE,
+        boardObject: {
+          objectId: "",
+          ownerId: userId,
+          isLocked: false,
+          coordinates: { x: 200, y: 200 },
+          comment: "",
+          stringImage: base64data,
+          extension: filename.slice(-4),
+          colour: whiteboard.hexToRgb("#ff7eb9"),
+        },
+      })
+    );
+    const { correspondingReadOnlyWid } = ConfigService;
+    // const filename = `${correspondingReadOnlyWid}_${date}.png`;
+    const rootUrl = document.URL.substr(0, document.URL.lastIndexOf("/"));
+    whiteboard.addImgToCanvasByUrl(
+      `${rootUrl}/uploads/${correspondingReadOnlyWid}/${filename}`
+    ); //Add image to canvas
   }
 
   // verify if filename refers to an image
@@ -1131,6 +1134,7 @@ function initWhiteboard() {
             reader.onloadend = function () {
               console.log("Uploading image!");
               let base64data = reader.result;
+              console.log(base64data);
               uploadImgAndAddToWhiteboard(base64data);
             };
           }
