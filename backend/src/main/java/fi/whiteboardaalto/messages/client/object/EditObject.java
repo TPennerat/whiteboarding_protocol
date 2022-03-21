@@ -8,6 +8,8 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import fi.whiteboardaalto.messages.client.object.change.Change;
 import fi.whiteboardaalto.messages.client.object.change.EditType;
 import fi.whiteboardaalto.messages.client.object.change.PositionChange;
+import fi.whiteboardaalto.messages.server.ack.object.ColourChanged;
+import fi.whiteboardaalto.messages.server.ack.object.TextChanged;
 
 public class EditObject extends ObjectAction {
 
@@ -27,7 +29,9 @@ public class EditObject extends ObjectAction {
 
     @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, include = JsonTypeInfo.As.EXTERNAL_PROPERTY, property = "editType")
     @JsonSubTypes(value = {
-            @JsonSubTypes.Type(value = PositionChange.class, name = "POSITION_CHANGE")
+            @JsonSubTypes.Type(value = PositionChange.class, name = "POSITION_CHANGE"),
+            @JsonSubTypes.Type(value = TextChanged.class, name = "TEXT_CHANGED"),
+            @JsonSubTypes.Type(value = ColourChanged.class, name = "COLOUR_CHANGED")
     })
     public void setChange(Change change) {
         this.change = change;
