@@ -91,12 +91,26 @@ function main() {
         whiteboard.drawBuffer[drawBufferIndex].boardObject.objectId =
           response.message.objectId;
         drawBufferIndex++;
+        whiteboard.selectedObject = response.message.objectId;
         break;
-      case MessageType.POSITION_CHANGE:
+      case MessageType.POSITION_CHANGED:
         // TODO something ??
         break;
+      case MessageType.OBJECT_UNSELECTED:
+        whiteboard.selectedObject = "";
+        break;
+      case MessageType.OBJECT_DELETED:
+        break;
+      case MessageType.OBJECT_SELECTED:
+        break;
       default:
-        showBasicAlert("Unknown response" + event.data);
+        if (response.message.code.toString().split("")[0] === "4") {
+          showBasicAlert(
+            response.messageType + ": " + response.message.message
+          );
+        } else {
+          console.log(response.messageType + " needed to be implemented");
+        }
     }
     MessageHelper.incrementMessageId();
   });
@@ -412,6 +426,15 @@ function initWhiteboard() {
         whiteboard.setTool(activeTool);
         if (activeTool == "mouse" || activeTool == "recSelect") {
           $(".activeToolIcon").empty();
+          if (whiteboard.selectedObject !== "") {
+            socketjs.send(
+              StringifyHelper.stringify(MessageType.UNSELECT, {
+                messageId: MessageHelper.generateId(),
+                userId: userId,
+                objectId: whiteboard.selectedObject,
+              })
+            );
+          }
         } else {
           $(".activeToolIcon").html($(this).html()); //Set Active icon the same as the button icon
         }
