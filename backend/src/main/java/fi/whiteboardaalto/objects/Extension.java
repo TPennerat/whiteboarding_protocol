@@ -2,5 +2,9 @@ package fi.whiteboardaalto.objects;
 
 public enum Extension {
     PNG,
-    JPEG
+    png,
+    JPEG,
+    jpeg,
+    JPG,
+    jpg
 }
