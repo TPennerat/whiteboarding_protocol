@@ -6,6 +6,6 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 public class BusyObjectError extends Error {
     @JsonCreator
     public BusyObjectError(@JsonProperty("messageId") int messageId) {
-        super(messageId, 205, "Object is already selected by another user.");
+        super(messageId, 431, "Object is already selected by another user.");
     }
 }

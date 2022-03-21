@@ -1,5 +1,7 @@
 package fi.whiteboardaalto;
 
+import fi.whiteboardaalto.logging.Colour;
+import fi.whiteboardaalto.logging.ConsoleLogger;
 import fi.whiteboardaalto.objects.BoardObject;
 
 import java.util.HashSet;
@@ -52,6 +54,9 @@ public class Meeting {
     }
 
     public boolean pseudoAlreadyExists(String testPseudo) {
+        if(testPseudo.equals(host.getPseudo())) {
+            return true;
+        }
         for (User user : users) {
             if(user.getPseudo().equals(testPseudo)) {
                 return true;
@@ -76,7 +81,12 @@ public class Meeting {
         users.remove(newHost);
         // We set the host of the meeting as the newHost
         setHost(newHost);
-        System.out.println("[*] The new host of the meeting is: " + newHost.getPseudo());
+        ConsoleLogger.loggConsole("[i] The new host of the meeting is: " + newHost.getPseudo(), Colour.WHITE);
+    }
+
+    public int getTotalUsers() {
+        // The +1 is for the host. There is always a host because if the host leaves a meeting, a new one is chosen.
+        return users.size()+1;
     }
 
     @Override

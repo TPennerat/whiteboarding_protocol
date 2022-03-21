@@ -6,6 +6,6 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 public class MeetingAlreadyCreatedError extends Error {
     @JsonCreator
     public MeetingAlreadyCreatedError(@JsonProperty("meetingId") int messageId) {
-        super(messageId, 210, "You have already created a meeting.");
+        super(messageId, 402, "You have already created a meeting.");
     }
 }

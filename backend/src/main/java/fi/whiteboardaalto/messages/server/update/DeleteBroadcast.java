@@ -9,7 +9,7 @@ public class DeleteBroadcast extends Answer {
 
     @JsonCreator
     public DeleteBroadcast(@JsonProperty("messageId") int messageId, @JsonProperty("objectId") String objectId) {
-        super(messageId, 403);
+        super(messageId, 302);
         this.objectId = objectId;
     }
 

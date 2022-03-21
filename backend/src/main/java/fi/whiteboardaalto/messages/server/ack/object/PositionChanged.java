@@ -6,6 +6,6 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 public class PositionChanged extends ObjectAck {
     @JsonCreator
     public PositionChanged(@JsonProperty("messageId") int messageId, @JsonProperty("checksum") String checksum) {
-        super(messageId, 105, checksum);
+        super(messageId, 103, checksum);
     }
 }
