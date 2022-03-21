@@ -1435,13 +1435,37 @@ const whiteboard = {
     console.log(content);
 
     var _this = this;
-    var tool = content["t"];
+    // var tool = content["t"];
+    // console.log(content);
+    var boardObject = content.message.boardObject;
+    // console.log(boardObject);
+
+    // MIDDLEWARE
+    var data = [
+      _this.drawcolor,
+      _this.textboxBackgroundColor,
+      "15",
+      boardObject.coordinates.x,
+      boardObject.coordinates.y,
+      "fdfdfdf",
+      true,
+      false,
+    ];
+
+    content = {
+      t: "addTextBox",
+      d: data,
+      c: _this.drawcolor,
+      u: boardObject.ownerId,
+      th: 1,
+    };
+
+    var tool = "addTextBox";
     var data = content["d"];
     var color = content["c"];
-    var username = content["username"];
-    var thickness = content["th"];
+    var username = content["ownerId"];
 
-    console.log(content);
+    var thickness = content["th"];
 
     window.requestAnimationFrame(function () {
       if (tool === "line" || tool === "pen") {
@@ -1506,6 +1530,7 @@ const whiteboard = {
           data[5],
           data[6]
         );
+        _this.setTextboxText(boardObject.objectId, boardObject.text);
       } else if (tool === "setTextboxText") {
         _this.setTextboxText(data[0], data[1]);
       } else if (tool === "removeTextbox") {

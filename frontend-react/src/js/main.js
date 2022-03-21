@@ -38,10 +38,11 @@ function main() {
   socketjs.addEventListener("message", function (event) {
     const response = JSON.parse(event.data);
     console.log("Réponse serveur:\n", response);
-    if (response.message.messageId !== MessageHelper.getActualMessageId()) {
-      showBasicAlert("Wrong messageId");
-      return;
-    }
+    // if (response.message.messageId !== MessageHelper.getActualMessageId()) {
+    //   showBasicAlert("Wrong messageId");
+    //   return;
+    // }
+
     switch (response.messageType) {
       case MessageType.MEETING_CREATED:
         userId = response.message.userId;
@@ -89,7 +90,18 @@ function main() {
         whiteboard.loadData(response);
       case MessageType.OBJECT_CREATED:
         console.log("object_created");
+        content = response;
+      // socket.on("drawToWhiteboard", function (content) {
+      //   whiteboard.handleEventsAndData(content, true);
+      //   InfoService.incrementNbMessagesReceived();
+      // });
+      case MessageType.CHANGE_BROADCAST:
+        console.log("CHANGE_BROADCAST v1");
+        var content = response;
+        whiteboard.handleEventsAndData(content, true);
+
       default:
+        console.log("ALL");
         showBasicAlert("Unknown response" + event.data);
     }
     MessageHelper.incrementMessageId();
