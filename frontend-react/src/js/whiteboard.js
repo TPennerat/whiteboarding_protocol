@@ -9,6 +9,7 @@ import DOMPurify from "dompurify";
 import MessageType from "./messageType";
 import MessageHelper from "./services/MessageHelper";
 import ObjectType from "./objectType";
+import StringifyHelper from "./services/StringifyHelper";
 
 const RAD_TO_DEG = 180.0 / Math.PI;
 const DEG_TO_RAD = Math.PI / 180.0;
@@ -60,6 +61,8 @@ const whiteboard = {
   lastPointerSentTime: 0,
   changeId: 0,
   changeIdToBeAck: 1,
+  drawBufferId: 0,
+  selectedObject: "",
   /**
    * @type Point
    */
@@ -142,7 +145,6 @@ const whiteboard = {
     });
 
     _this.mousedown = function (e) {
-      console.log("cc mousedown");
       if (_this.imgDragActive || _this.drawFlag) {
         return;
       }
@@ -284,7 +286,6 @@ const whiteboard = {
           _this.drawcolor,
           _this.thickness
         );
-        console.log("drawing pen line");
         _this.sendFunction(MessageType.CREATE_OBJECT, {
           objectType: ObjectType.STICKY_NOTE,
           messageId: MessageHelper.generateId(),
@@ -446,7 +447,6 @@ const whiteboard = {
             const leftT = Math.round(p.left * 100) / 100;
             const topT = Math.round(p.top * 100) / 100;
             _this.drawId++;
-            console.log("rect selec ?");
             _this.sendFunction(MessageType.CREATE_OBJECT, {
               objectType: _this.tool,
               objectId: _this.drawId,
@@ -487,22 +487,28 @@ const whiteboard = {
       const fontsize = _this.thickness * 0.5;
       const txId = "tx" + +new Date();
       const isStickyNote = _this.tool === "stickynote";
-      _this.sendFunction(MessageType.CREATE_OBJECT, {
-        messageId: MessageHelper.generateId(),
-        userId: _this.settings.userId,
-        objectId: "",
-        objectType: isStickyNote ? ObjectType.STICKY_NOTE : ObjectType.TEXT_BOX,
-        boardObject: {
+      _this.sendFunction(
+        MessageType.CREATE_OBJECT,
+        {
+          messageId: MessageHelper.generateId(),
+          userId: _this.settings.userId,
           objectId: "",
-          ownerId: _this.settings.userId,
-          isLocked: true,
-          coordinates: { x: currentPos.x, y: currentPos.y },
-          text: "caca",
-          font: "Comic Sans MS",
-          size: { x: 3, y: 4 },
-          colour: hexToRgb("#ff7eb9"),
+          objectType: isStickyNote
+            ? ObjectType.STICKY_NOTE
+            : ObjectType.TEXT_BOX,
+          boardObject: {
+            objectId: "",
+            ownerId: _this.settings.userId,
+            isLocked: true,
+            coordinates: { x: currentPos.x, y: currentPos.y },
+            text: "",
+            font: "Comic Sans MS",
+            size: { x: 1, y: 1 },
+            colour: hexToRgb("#ff7eb9"),
+          },
         },
-      });
+        "addTextBox"
+      );
       _this.addTextBox(
         _this.drawcolor,
         _this.textboxBackgroundColor,
@@ -511,7 +517,8 @@ const whiteboard = {
         currentPos.y,
         txId,
         isStickyNote,
-        true
+        true,
+        _this.drawBufferId
       );
     });
   },
@@ -1059,11 +1066,10 @@ const whiteboard = {
     top,
     txId,
     isStickyNote,
-    newLocalBox
+    newLocalBox,
+    drawBufferId
   ) {
-    console.log(textcolor, textboxBackgroundColor);
     var _this = this;
-    console.log(isStickyNote);
     var cssclass = "textBox";
     if (isStickyNote) {
       cssclass += " stickyNote";
@@ -1121,6 +1127,25 @@ const whiteboard = {
       });*/
     });
     this.textContainer.append(textBox);
+    var _this = this;
+    textBox.find(".textContent").on("click", function (ev) {
+      if (_this.selectedObject !== "") {
+        _this.sendFunction(MessageType.UNSELECT, {
+          messageId: MessageHelper.generateId(),
+          userId: _this.settings.userId,
+          objectId: _this.selectedObject,
+        });
+      } else if (
+        _this.selectedObject !== _this.drawBuffer[drawBufferId].objectId
+      ) {
+        _this.sendFunction(MessageType.SELECT, {
+          messageId: MessageHelper.generateId(),
+          userId: _this.settings.userId,
+          objectId: _this.drawBuffer[drawBufferId].objectId,
+        });
+        _this.selectedId = _this.drawBuffer[drawBufferId].objectId;
+      }
+    });
     textBox.draggable({
       handle: ".moveIcon",
       stop: function () {
@@ -1128,7 +1153,7 @@ const whiteboard = {
         _this.sendFunction(MessageType.EDIT, {
           messageId: MessageHelper.generateId(),
           userId: _this.settings.userId,
-          objectId: txId,
+          objectId: _this.drawBuffer[drawBufferId].objectId,
           editType: MessageType.POSITION_CHANGE,
           change: {
             changeId: _this.changeId,
@@ -1141,11 +1166,11 @@ const whiteboard = {
         _this.changeId++;
       },
       drag: function () {
-        var textBoxPosition = textBox.position();
+        /*var textBoxPosition = textBox.position();
         _this.sendFunction(MessageType.EDIT, {
           messageId: MessageHelper.generateId(),
           userId: _this.settings.userId,
-          objectId: txId,
+          objectId: _this.drawBuffer[drawBufferId].objectId,
           editType: MessageType.POSITION_CHANGE,
           change: {
             changeId: _this.changeId,
@@ -1155,25 +1180,22 @@ const whiteboard = {
             },
           },
         });
-        _this.changeId++;
+        _this.changeId++;*/
       },
     });
     textBox.find(".textContent").on("input", function () {
-      var text = btoa(unescape(encodeURIComponent($(this).html()))); //Get html and make encode base64 also take care of the charset
-      _this.sendFunction(MessageType.CREATE_OBJECT, {
-        objectType: _this.tool,
-        objectId: _this.drawId,
-        boardObject: {
-          objectId: _this.drawId,
-          ownerId: "???",
-          isLocked: false,
-          coordinates: {
-            x: currentPos.x,
-            y: currentPos.y,
-          },
-          colour: hexToRgb(_this.drawcolor),
+      var text = $(this).html();
+      _this.sendFunction(MessageType.EDIT, {
+        messageId: MessageHelper.generateId(),
+        userId: _this.userId,
+        objectId: _this.drawBuffer[drawBufferId].objectId,
+        editType: MessageType.TEXT_CHANGED,
+        change: {
+          changeId: _this.changeId,
+          newText: text,
         },
       });
+      _this.changeId++;
     });
     textBox
       .find(".removeIcon")
@@ -1184,7 +1206,7 @@ const whiteboard = {
         _this.sendFunction(MessageType.DELETE, {
           messageId: MessageHelper.generateId(),
           userId: _this.settings.userId,
-          objectId: txId,
+          objectId: _this.drawBuffer[drawBufferId].objectId,
         });
         e.preventDefault();
         return false;
@@ -1255,19 +1277,16 @@ const whiteboard = {
 
     img.src = this.imgWithSrc(url).attr("src"); // or here - but consistent
   },
-  undoWhiteboard: function (username) {
+  undoWhiteboard: function () {
     //Not call this directly because you will get out of sync whith others...
     var _this = this;
-    if (!username) {
-      username = _this.settings.username;
-    }
     for (var i = _this.drawBuffer.length - 1; i >= 0; i--) {
-      if (_this.drawBuffer[i]["username"] == username) {
-        var drawId = _this.drawBuffer[i]["drawId"];
+      if (_this.drawBuffer[i].userId === _this.settings.userId) {
+        var drawId = _this.drawBuffer[i];
         for (var i = _this.drawBuffer.length - 1; i >= 0; i--) {
           if (
-            _this.drawBuffer[i]["drawId"] == drawId &&
-            _this.drawBuffer[i]["username"] == username
+            _this.drawBuffer[i]["drawId"] === drawId &&
+            _this.drawBuffer[i].userId === _this.settings.userId
           ) {
             _this.undoBuffer.push(_this.drawBuffer[i]);
             _this.drawBuffer.splice(i, 1);
@@ -1281,7 +1300,7 @@ const whiteboard = {
     }
     _this.canvas.height = _this.canvas.height;
     _this.imgContainer.empty();
-    _this.loadDataInSteps(_this.drawBuffer, false, function (stepData) {
+    _this.loadDataInSteps(_this.drawBuffer, false, (stepData) => {
       //Nothing to do
     });
   },
@@ -1315,20 +1334,6 @@ const whiteboard = {
   undoWhiteboardClick: function () {
     var _this = this;
     if (ReadOnlyService.readOnlyActive) return;
-    _this.sendFunction(MessageType.CREATE_OBJECT, {
-      objectType: _this.tool,
-      objectId: _this.drawId,
-      boardObject: {
-        objectId: _this.drawId,
-        ownerId: "???",
-        isLocked: false,
-        coordinates: {
-          x: currentPos.x,
-          y: currentPos.y,
-        },
-        colour: hexToRgb(_this.drawcolor),
-      },
-    });
     this.undoWhiteboard();
   },
   redoWhiteboardClick: function () {
@@ -1746,11 +1751,10 @@ const whiteboard = {
       }
     });
   },
-  sendFunction: function (messageType, content) {
+  sendFunction: function (messageType, content, tool) {
     //Sends every draw to server
     var _this = this;
 
-    var tool = content.type;
     if (_this.settings.sendFunction) {
       _this.settings.sendFunction(messageType, content);
     }
@@ -1774,6 +1778,25 @@ const whiteboard = {
       ].includes(tool)
     ) {
       _this.drawBuffer.push(content);
+    }
+    if (content.boardObject.isLocked !== undefined) {
+      if (content.boardObject.isLocked) {
+        if (_this.selectedObject !== "") {
+          _this.settings.sendFunction(MessageType.UNSELECT, {
+            messageId: MessageHelper.generateId(),
+            userId: _this.settings.userId,
+            objectId: _this.selectedObject,
+          });
+          _this.selectedObject = content.objectId;
+        }
+      }
+    } else {
+      _this.settings.sendFunction(MessageType.SELECT, {
+        messageId: MessageHelper.generateId(),
+        userId: _this.settings.userId,
+        objectId: content.objectId,
+      });
+      _this.selectedObject = content.objectId;
     }
   },
   refreshCursorAppearance() {

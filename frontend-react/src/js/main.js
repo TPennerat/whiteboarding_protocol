@@ -25,6 +25,7 @@ let meetingId = urlParams.get("meetingId");
 document.title = "tat.io";
 let socketjs = null;
 let userId = null;
+let drawBufferIndex = 0;
 
 function main() {
   socketjs = new WebSocket("ws://localhost:4444");
@@ -38,10 +39,6 @@ function main() {
   socketjs.addEventListener("message", function (event) {
     const response = JSON.parse(event.data);
     console.log("Réponse serveur:\n", response);
-    // if (response.message.messageId !== MessageHelper.getActualMessageId()) {
-    //   showBasicAlert("Wrong messageId");
-    //   return;
-    // }
 
     switch (response.messageType) {
       case MessageType.MEETING_CREATED:
@@ -88,21 +85,40 @@ function main() {
         break;
       case MessageType.BOARD_UPDATE:
         whiteboard.loadData(response);
+        break;
       case MessageType.OBJECT_CREATED:
         console.log("object_created");
         content = response;
-      // socket.on("drawToWhiteboard", function (content) {
-      //   whiteboard.handleEventsAndData(content, true);
-      //   InfoService.incrementNbMessagesReceived();
-      // });
+        break;
       case MessageType.CHANGE_BROADCAST:
         console.log("CHANGE_BROADCAST v1");
         var content = response;
         whiteboard.handleEventsAndData(content, true);
-
+        whiteboard.drawBuffer[drawBufferIndex].objectId =
+          response.message.objectId;
+        whiteboard.drawBuffer[drawBufferIndex].boardObject.objectId =
+          response.message.objectId;
+        drawBufferIndex++;
+        whiteboard.selectedObject = response.message.objectId;
+        break;
+      case MessageType.POSITION_CHANGED:
+        // TODO something ??
+        break;
+      case MessageType.OBJECT_UNSELECTED:
+        whiteboard.selectedObject = "";
+        break;
+      case MessageType.OBJECT_DELETED:
+        break;
+      case MessageType.OBJECT_SELECTED:
+        break;
       default:
-        console.log("ALL");
-        showBasicAlert("Unknown response" + event.data);
+        if (response.message.code.toString().split("")[0] === "4") {
+          showBasicAlert(
+            response.messageType + ": " + response.message.message
+          );
+        } else {
+          console.log(response.messageType + " needed to be implemented");
+        }
     }
     MessageHelper.incrementMessageId();
   });
@@ -418,6 +434,15 @@ function initWhiteboard() {
         whiteboard.setTool(activeTool);
         if (activeTool == "mouse" || activeTool == "recSelect") {
           $(".activeToolIcon").empty();
+          if (whiteboard.selectedObject !== "") {
+            socketjs.send(
+              StringifyHelper.stringify(MessageType.UNSELECT, {
+                messageId: MessageHelper.generateId(),
+                userId: userId,
+                objectId: whiteboard.selectedObject,
+              })
+            );
+          }
         } else {
           $(".activeToolIcon").html($(this).html()); //Set Active icon the same as the button icon
         }

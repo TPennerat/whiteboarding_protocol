@@ -7,7 +7,7 @@ public class ObjectCreated extends ObjectAck {
     private String objectId;
     @JsonCreator
     public ObjectCreated(@JsonProperty("messageId") int messageId, @JsonProperty("ObjectId") String objectId, @JsonProperty("checksum") String checksum) {
-        super(messageId, 102, checksum);
+        super(messageId, 104, checksum);
         this.objectId = objectId;
     }
 

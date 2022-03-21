@@ -6,6 +6,6 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 public class ServerFullError extends Error {
     @JsonCreator
     public ServerFullError(@JsonProperty("messageId") int messageId) {
-        super(messageId, 201, "The chosen coordinates are already in use.");
+        super(messageId, 421, "The chosen coordinates are already in use.");
     }
 }

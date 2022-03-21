@@ -2,15 +2,15 @@ package fi.whiteboardaalto.messages.server.update;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
+
 import fi.whiteboardaalto.messages.server.Answer;
 
-public class UserBroadcast extends Answer {
-
+public class UserLeftBroadcast extends Answer {
     private String pseudo;
 
     @JsonCreator
-    public UserBroadcast(@JsonProperty("messageId") int messageId, @JsonProperty("pseudo") String pseudo) {
-        super(messageId, 303);
+    public UserLeftBroadcast(@JsonProperty("messageId") int messageId, @JsonProperty("pseudo") String pseudo) {
+        super(messageId, 304);
         this.pseudo = pseudo;
     }
 

@@ -6,6 +6,6 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 public class MessageMalformedError extends Error {
     @JsonCreator
     public MessageMalformedError(@JsonProperty("messageId") int messageId) {
-        super(messageId, 207, "Message malformed.");
+        super(messageId, 422, "Message malformed.");
     }
 }

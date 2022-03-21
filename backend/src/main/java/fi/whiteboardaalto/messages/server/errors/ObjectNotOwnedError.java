@@ -6,6 +6,6 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 public class ObjectNotOwnedError extends Error {
     @JsonCreator
     public ObjectNotOwnedError(@JsonProperty("messageId") int messageId) {
-        super(messageId, 211, "You can't unselect this object: not priorly selected.");
+        super(messageId, 434, "The object is selected but not by you.");
     }
 }
