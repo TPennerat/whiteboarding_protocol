@@ -23,6 +23,7 @@ public enum MessageType {
     BOARD_UPDATE,
     DELETE_BROADCAST,
     USER_LEFT_BROADCAST,
+    HOST_BROADCAST,
     // Session-related message
     MEETING_LEFT,
     MEETING_JOINED,

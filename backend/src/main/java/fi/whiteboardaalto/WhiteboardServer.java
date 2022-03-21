@@ -28,7 +28,6 @@ import org.java_websocket.server.WebSocketServer;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import javax.swing.text.Style;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
@@ -74,6 +73,9 @@ public class WhiteboardServer extends WebSocketServer {
                 } else {
                     // If the host is not the last one, then we simply elect another host
                     meeting.transferHost();
+                    // We update everyone (including the host) that there is a new host
+                    HostBroadcast hostBroadcast = new HostBroadcast(messageIdGenerator(), meeting.getHost().getPseudo());
+                    broadcastMessageToAll(hostBroadcast, meeting, MessageType.HOST_BROADCAST);
                 }
             }
         }
@@ -156,7 +158,7 @@ public class WhiteboardServer extends WebSocketServer {
                             sendMessage(conn, boardUpdate, MessageType.BOARD_UPDATE);
                             // Broadcasting the new user to the existing users
                             UserBroadcast userBroadcast = new UserBroadcast(messageIdGenerator(), newUser.getPseudo());
-                            broadcastMessage(userBroadcast, conn, MessageType.USER_BROADCAST);
+                            broadcastMessageToOthers(userBroadcast, conn, MessageType.USER_BROADCAST);
                             ConsoleLogger.loggConsole(toString(), Colour.DEFAULT);
                         } else sendMessage(conn, new BusyPseudoError(joinMeeting.getMessageId()+1), MessageType.BUSY_PSEUDO_ERROR);
                     } else sendMessage(conn, new AlreadyInMeetingError(joinMeeting.getMessageId()+1), MessageType.ALREADY_IN_MEETING_ERROR);
@@ -186,7 +188,7 @@ public class WhiteboardServer extends WebSocketServer {
                 ConsoleLogger.loggConsole("[-] " + pseudo + " left the following meeting: " + leaveMeeting.getMeetingId(), Colour.YELLOW);
                 // Broadcasting that the user has left
                 UserLeftBroadcast userLeftBroadcast = new UserLeftBroadcast(messageIdGenerator(), pseudo);
-                broadcastMessage(userLeftBroadcast, conn, MessageType.USER_LEFT_BROADCAST);
+                broadcastMessageToOthers(userLeftBroadcast, conn, MessageType.USER_LEFT_BROADCAST);
                 ConsoleLogger.loggConsole(toString(), Colour.DEFAULT);
                 break;
             case SELECT:
@@ -209,7 +211,7 @@ public class WhiteboardServer extends WebSocketServer {
                         sendMessage(conn, objectSelected, MessageType.OBJECT_SELECTED);
                         // Broadcasting the object with the new modifications
                         ChangeBroadcast changeBroadcast = new ChangeBroadcast(selectObject.getMessageId()+1, boardObject);
-                        broadcastMessage(changeBroadcast, conn, MessageType.CHANGE_BROADCAST);
+                        broadcastMessageToOthers(changeBroadcast, conn, MessageType.CHANGE_BROADCAST);
                     } else sendMessage(conn, new BusyObjectError(selectObject.getMessageId()+1), MessageType.BUSY_OBJECT_ERROR);
                 } else sendMessage(conn, new ObjectNotFoundError(selectObject.getMessageId()+1), MessageType.OBJECT_NOT_FOUND_ERROR);
                 break;
@@ -235,7 +237,7 @@ public class WhiteboardServer extends WebSocketServer {
                             sendMessage(conn, objectUnselected, MessageType.OBJECT_UNSELECTED);
                             // Broadcasting the object with the new modifications
                             ChangeBroadcast changeBroadcast = new ChangeBroadcast(messageIdGenerator(), boardObject);
-                            broadcastMessage(changeBroadcast, conn, MessageType.CHANGE_BROADCAST);
+                            broadcastMessageToOthers(changeBroadcast, conn, MessageType.CHANGE_BROADCAST);
                         } else sendMessage(conn, new ObjectNotOwnedError(unselectObject.getMessageId() + 1), MessageType.OBJECT_NOT_OWNED_ERROR);
                     } else sendMessage(conn, new ObjectNotSelectedError(unselectObject.getMessageId()+1), MessageType.OBJECT_NOT_SELECTED_ERROR);
                 } else sendMessage(conn, new ObjectNotFoundError(unselectObject.getMessageId()+1), MessageType.OBJECT_NOT_FOUND_ERROR);
@@ -259,7 +261,7 @@ public class WhiteboardServer extends WebSocketServer {
                         sendMessage(conn, objectDeleted, MessageType.OBJECT_DELETED);
                         // Broadcasting the object with the new modifications
                         DeleteBroadcast deleteBroadcast = new DeleteBroadcast(messageIdGenerator(), deleteObject.getObjectId());
-                        broadcastMessage(deleteBroadcast, conn, MessageType.DELETE_BROADCAST);
+                        broadcastMessageToOthers(deleteBroadcast, conn, MessageType.DELETE_BROADCAST);
                         ConsoleLogger.loggConsole(toString(), Colour.DEFAULT);
                     } else sendMessage(conn, new BusyObjectError(deleteObject.getMessageId()+1), MessageType.BUSY_OBJECT_ERROR);
                 } else sendMessage(conn, new ObjectNotFoundError(deleteObject.getMessageId()+1), MessageType.OBJECT_NOT_FOUND_ERROR);
@@ -320,7 +322,7 @@ public class WhiteboardServer extends WebSocketServer {
                         break;
                 }
                 ChangeBroadcast changeBroadcast = new ChangeBroadcast(messageIdGenerator(), boardObject);
-                broadcastMessage(changeBroadcast, conn, MessageType.CHANGE_BROADCAST);
+                broadcastMessageToOthers(changeBroadcast, conn, MessageType.CHANGE_BROADCAST);
                 break;
         }
     }
@@ -413,12 +415,12 @@ public class WhiteboardServer extends WebSocketServer {
             }
             ObjectCreated objectCreated = new ObjectCreated(messageIdAck, objectId, sha256hash);
             sendMessage(conn, objectCreated, MessageType.OBJECT_CREATED);
-            broadcastMessage(changeBroadcast, conn, MessageType.CHANGE_BROADCAST);
+            broadcastMessageToOthers(changeBroadcast, conn, MessageType.CHANGE_BROADCAST);
         } else { sendMessage(conn, new BusyCoordinatesError(messageIdAck), MessageType.BUSY_COORDINATES_ERROR); }
 
     }
 
-    private void broadcastMessage(Object object, WebSocket notToSendTo, MessageType messageType) {
+    private void broadcastMessageToOthers(Object object, WebSocket notToSendTo, MessageType messageType) {
         // Finding the meeting with all the users inside
         String userId = users.get(notToSendTo).getUserId();
         Meeting meeting = findMeetingByUserId(userId);
@@ -432,10 +434,19 @@ public class WhiteboardServer extends WebSocketServer {
         }
     }
 
+    private void broadcastMessageToAll(Object object, Meeting meeting, MessageType messageType) {
+        for (WebSocket webSocket : getAllSocketsFromMeeting(meeting)) {
+                sendMessage(webSocket, object, messageType);
+            }
+        }
+
     private Set<WebSocket> getAllSocketsFromMeeting(Meeting meeting) {
         Set<WebSocket> set = new HashSet<WebSocket>();
-        for(User userToAdd : meeting.getUsers()) {
-            for (Map.Entry<WebSocket, User> entry : users.entrySet()) {
+        for(Map.Entry<WebSocket, User> entry : users.entrySet()) {
+            if(Objects.equals(meeting.getHost(), entry.getValue())) {
+                set.add(entry.getKey());
+            }
+            for(User userToAdd : meeting.getUsers()) {
                 if (Objects.equals(userToAdd, entry.getValue()) || Objects.equals(meeting.getHost(), entry.getValue())) {
                     set.add(entry.getKey());
                 }

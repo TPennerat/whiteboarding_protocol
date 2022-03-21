@@ -1,5 +1,7 @@
 package fi.whiteboardaalto;
 
+import fi.whiteboardaalto.logging.Colour;
+import fi.whiteboardaalto.logging.ConsoleLogger;
 import fi.whiteboardaalto.objects.BoardObject;
 
 import java.util.HashSet;
@@ -79,7 +81,7 @@ public class Meeting {
         users.remove(newHost);
         // We set the host of the meeting as the newHost
         setHost(newHost);
-        System.out.println("[*] The new host of the meeting is: " + newHost.getPseudo());
+        ConsoleLogger.loggConsole("[i] The new host of the meeting is: " + newHost.getPseudo(), Colour.WHITE);
     }
 
     public int getTotalUsers() {
