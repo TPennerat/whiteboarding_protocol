@@ -1099,17 +1099,17 @@ const whiteboard = {
       });*/
     });
     this.textContainer.append(textBox);
-    var _this = this;
     textBox.find(".textContent").on("click", function (ev) {
       if (_this.selectedObject !== "") {
-        _this.sendFunction(MessageType.UNSELECT, {
-          messageId: MessageHelper.generateId(),
-          userId: _this.settings.userId,
-          objectId: _this.selectedObject,
-        });
-      } else if (
-        _this.selectedObject !== _this.drawBuffer[drawBufferId].objectId
-      ) {
+        if (_this.selectedObject !== _this.drawBuffer[drawBufferId].objectId) {
+          _this.sendFunction(MessageType.UNSELECT, {
+            messageId: MessageHelper.generateId(),
+            userId: _this.settings.userId,
+            objectId: _this.selectedObject,
+          });
+        }
+      } else {
+        console.log(_this.drawBuffer[drawBufferId]);
         _this.sendFunction(MessageType.SELECT, {
           messageId: MessageHelper.generateId(),
           userId: _this.settings.userId,
@@ -1751,24 +1751,14 @@ const whiteboard = {
     ) {
       _this.drawBuffer.push(content);
     }
-    if (content.boardObject.isLocked !== undefined) {
-      if (content.boardObject.isLocked) {
-        if (_this.selectedObject !== "") {
-          _this.settings.sendFunction(MessageType.UNSELECT, {
-            messageId: MessageHelper.generateId(),
-            userId: _this.settings.userId,
-            objectId: _this.selectedObject,
-          });
-          _this.selectedObject = content.objectId;
-        }
+    if (content.boardObject !== undefined && content.boardObject.isLocked) {
+      if (_this.selectedObject !== "") {
+        _this.settings.sendFunction(MessageType.UNSELECT, {
+          messageId: MessageHelper.generateId(),
+          userId: _this.settings.userId,
+          objectId: _this.selectedObject,
+        });
       }
-    } else {
-      _this.settings.sendFunction(MessageType.SELECT, {
-        messageId: MessageHelper.generateId(),
-        userId: _this.settings.userId,
-        objectId: content.objectId,
-      });
-      _this.selectedObject = content.objectId;
     }
   },
   refreshCursorAppearance() {

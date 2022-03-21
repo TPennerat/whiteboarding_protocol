@@ -29,7 +29,7 @@ let userId = null;
 let drawBufferIndex = 0;
 
 function main() {
-  socketjs = new WebSocket("ws://192.168.1.100:44567");
+  socketjs = new WebSocket("ws://16.16.43.155:44567");
 
   socketjs.addEventListener("open", function (event) {
     console.log("Websocket connected!");
@@ -88,8 +88,12 @@ function main() {
         whiteboard.loadData(response);
         break;
       case MessageType.OBJECT_CREATED:
-        console.log("object_created");
         content = response;
+        if (whiteboard.selectedObject === "") {
+          whiteboard.selectedObject = response.message.objectId;
+        }
+        whiteboard.drawBuffer[whiteboard.drawBuffer.length - 1].objectId =
+          response.message.objectId;
         break;
       case MessageType.CHANGE_BROADCAST:
         console.log("CHANGE_BROADCAST v1");
