@@ -1,19 +1,22 @@
-package fi.whiteboardaalto.messages.client.action;
+package fi.whiteboardaalto.messages.client;
 
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import fi.whiteboardaalto.messages.Message;
 
-@JsonIgnoreProperties(ignoreUnknown = true)
 public class ActionMessage extends Message {
 
     private String userId;
 
     public ActionMessage(int messageId, String userId) {
-        this.messageId = messageId;
+        super(messageId);
         this.userId = userId;
     }
 
     public String getUserId() {
         return userId;
     }
+
+    public void setUserId(String userId) {
+        this.userId = userId;
+    }
+
 }

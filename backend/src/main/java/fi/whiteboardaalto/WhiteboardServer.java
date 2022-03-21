@@ -1,27 +1,36 @@
 package fi.whiteboardaalto;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import com.google.common.hash.HashCode;
+import com.google.common.hash.HashFunction;
+import com.google.common.hash.Hashing;
+import fi.whiteboardaalto.logging.Colour;
+import fi.whiteboardaalto.logging.ConsoleLogger;
+import fi.whiteboardaalto.messages.Message;
 import fi.whiteboardaalto.messages.MessageType;
 import fi.whiteboardaalto.messages.SuperMessage;
-import fi.whiteboardaalto.messages.client.action.CreateObject;
+import fi.whiteboardaalto.messages.client.object.*;
+import fi.whiteboardaalto.messages.client.object.change.ColourChange;
+import fi.whiteboardaalto.messages.client.object.change.CommentChange;
+import fi.whiteboardaalto.messages.client.object.change.PositionChange;
 import fi.whiteboardaalto.messages.client.session.CreateMeeting;
 import fi.whiteboardaalto.messages.client.session.JoinMeeting;
 import fi.whiteboardaalto.messages.client.session.LeaveMeeting;
-import fi.whiteboardaalto.messages.server.ack.MeetingCreated;
-import fi.whiteboardaalto.messages.server.ack.MeetingJoined;
-import fi.whiteboardaalto.messages.server.ack.MeetingLeft;
-import fi.whiteboardaalto.messages.server.errors.NonExistentMeeting;
-import fi.whiteboardaalto.messages.server.errors.WrongFormatError;
+import fi.whiteboardaalto.messages.server.ack.object.*;
+import fi.whiteboardaalto.messages.server.ack.session.MeetingCreated;
+import fi.whiteboardaalto.messages.server.ack.session.MeetingJoined;
+import fi.whiteboardaalto.messages.server.ack.session.MeetingLeft;
+import fi.whiteboardaalto.messages.server.errors.*;
+import fi.whiteboardaalto.messages.server.update.*;
+import fi.whiteboardaalto.objects.*;
 import org.java_websocket.WebSocket;
 import org.java_websocket.handshake.ClientHandshake;
 import org.java_websocket.server.WebSocketServer;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import java.io.IOException;
-import java.net.InetAddress;
+import javax.swing.text.Style;
 import java.net.InetSocketAddress;
-import java.net.NetworkInterface;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 
 public class WhiteboardServer extends WebSocketServer {
@@ -43,93 +52,285 @@ public class WhiteboardServer extends WebSocketServer {
     @Override
     public void onOpen(WebSocket webSocket, ClientHandshake clientHandshake) {
         conns.add(webSocket);
-        System.out.println("New connection from " + webSocket.getRemoteSocketAddress().getAddress().getHostAddress() + ":" + webSocket.getRemoteSocketAddress().getPort());
+        String toDisplay = "[<>] New connection from " + webSocket.getRemoteSocketAddress().getAddress().getHostAddress() + ":" + webSocket.getRemoteSocketAddress().getPort();
+        ConsoleLogger.loggConsole(toDisplay, Colour.CYAN);
     }
 
     @Override
     public void onClose(WebSocket conn, int i, String s, boolean b) {
+        User existingUser = users.get(conn);
+
+        if(existingUser != null) {
+            Meeting meeting = findMeetingByUserId(existingUser.getUserId());
+            if(meeting.getUsers().contains(existingUser)) {
+                // If the user is a not a host, we simply remove it from the users set
+                meeting.getUsers().remove(existingUser);
+            } else if (meeting.getHost() == existingUser) {
+                // If the host is the last one in the meeting
+                if(meeting.getTotalUsers() == 1) {
+                    // We need to remove the meeting from the meeting the server is hosting
+                    ConsoleLogger.loggConsole("[i] The meeting " + meeting.getMeetingId() + " will now be deleted.", Colour.WHITE);
+                    meetings.remove(meeting);
+                } else {
+                    // If the host is not the last one, then we simply elect another host
+                    meeting.transferHost();
+                }
+            }
+        }
         conns.remove(conn);
-        System.out.println(toString());
-        // Remove the user (to code)
-        System.out.println("Closed connection to " + conn.getRemoteSocketAddress().getAddress().getHostAddress() + ":" + conn.getRemoteSocketAddress().getPort());
+        ConsoleLogger.loggConsole("[<>] Closed connection to " + conn.getRemoteSocketAddress().getAddress().getHostAddress() + ":" + conn.getRemoteSocketAddress().getPort(), Colour.YELLOW);
     }
 
     @Override
     public void onMessage(WebSocket conn, String message) {
-        try {
-            SuperMessage msg = mapper.readValue(message, SuperMessage.class);
-            System.out.println("Message type is: " + msg.getType() + " and message payload is: " + msg.getObject());
-            String messageString = msg.getObject().toString();
-            // For each case of the switch, errors still need to be considered and handled through exceptions
-            switch (msg.getType()) {
-                case CREATE_MEETING:
-                    CreateMeeting createMeeting = mapper.readValue(messageString, CreateMeeting.class);
-                    users.put(conn, new User(idGenerator(IdType.USER_ID), createMeeting.getPseudo()));
-                    // Preparing meeting creation message
-                    MeetingCreated meetingCreated = new MeetingCreated(createMeeting.getMessageId()+1, idGenerator(IdType.MEETING_ID), users.get(conn).getUserId());
-                    Meeting meeting = new Meeting(meetingCreated.getMeetingId(), users.get(conn));
-                    meeting.setHost(users.get(conn));
-                    meetings.add(meeting);
-                    // Sending confirmation for meeting creation
-                    sendMessage(conn, meetingCreated, MessageType.MEETING_CREATED);
-                    // For debug purposes
-                    System.out.println(toString());
-                    break;
-                case LEAVE_MEETING:
-                    LeaveMeeting leaveMeeting = mapper.readValue(messageString, LeaveMeeting.class);
-                    Meeting meetingToFind = findMeeting(leaveMeeting.getMeetingId());
-                    String pseudo = users.get(conn).getPseudo();
-                    MeetingLeft meetingLeft = new MeetingLeft(leaveMeeting.getMessageId()+1, meetingToFind.getMeetingId(), pseudo);
-                    meetingToFind.getUsers().remove(users.get(conn));
-                    sendMessage(conn, meetingLeft, MessageType.MEETING_LEFT);
-                    System.out.println(pseudo + " has left meeting " + meetingToFind.getMeetingId() + ".");
-                    conn.close();
-                    break;
-                case JOIN_MEETING:
-                    JoinMeeting joinMeeting = mapper.readValue(messageString, JoinMeeting.class);
-                    Meeting meetingToJoin = findMeeting(joinMeeting.getMeetingId());
-                    if (meetingToJoin != null) {
-                        System.out.println("Someone wants to join the following meeting: " + meetingToJoin.getMeetingId());
-                        User newUser = new User(idGenerator(IdType.USER_ID), joinMeeting.getPseudo());
-                        // Adding the user to the current list of users
-                        users.put(conn, newUser);
-                        MeetingJoined meetingJoined = new MeetingJoined(joinMeeting.getMessageId()+1, meetingToJoin.getMeetingId(), newUser.getUserId());
-                        // Adding the new player
-                        meetingToJoin.getUsers().add(newUser);
-                        sendMessage(conn, meetingJoined, MessageType.MEETING_JOINED);
-                        // For debug purposes
-                        System.out.println(toString());
-                    } else {
-                        NonExistentMeeting error = new NonExistentMeeting(0x202, "This meeting doesn't exist");
-                        sendMessage(conn, error, MessageType.NON_EXISTING_MEETING_ERROR);
-                        System.out.println("Non existent meeting exception sent.");
-                    }
-                    break;
-                case CREATE_OBJECT:
-                    CreateObject createObject = mapper.readValue(messageString, CreateObject.class);
+        SuperMessage superMessage = superMessageDeserialize(message);
 
-                    break;
-            }
-        } catch (JsonProcessingException e) {
-            System.out.println("Wrong message format: " + e);
-            WrongFormatError error = new WrongFormatError(0x201, "Message malformed.");
-            sendMessage(conn, error, MessageType.WRONG_FORMAT_ERROR);
+        // We need to check if the message sent has some content and is properly formed
+        if(superMessage == null || superMessage.getMessage() == null) {
+            sendMessage(conn, new MessageMalformedError(messageIdGenerator()), MessageType.MESSAGE_MALFORMED_ERROR);
+            return;
         }
 
-        /*
-        try {
-            Message msg = mapper.readValue(message, Message.class);
-            String type = msg.getType();
-            System.out.println("Message received of type: " + type);
-        } catch (JsonProcessingException e) {
-            System.out.println("Wrong message format: " + e);
+        User existingUser;
+        Meeting meeting;
+        BoardObject boardObject;
+        int messageIdAck;
+
+        switch(superMessage.getMessageType()) {
+            case CREATE_OBJECT:
+                ConsoleLogger.loggConsole("[$] CREATE_OBJECT request received", Colour.PURPLE);
+                CreateObject createObject = (CreateObject) superMessage.getMessage();
+                // Need to check if the user is authenticated with the userID from the request
+                if(!isUserAuth(createObject.getUserId(), conn)) {
+                    sendMessage(conn, new UserNotAuthError(createObject.getMessageId()+1), MessageType.USER_NOT_AUTH_ERROR);
+                    break;
+                }
+                if(createObject.getObjectId().length() != 0 || createObject.getBoardObject().getObjectId() .length()!= 0) {
+                    sendMessage(conn, new MessageMalformedError(createObject.getMessageId()+1), MessageType.MESSAGE_MALFORMED_ERROR);
+                    break;
+                }
+                addObjectToBoard(createObject, conn);
+                ConsoleLogger.loggConsole(toString(), Colour.DEFAULT);
+                break;
+            case CREATE_MEETING:
+                String networkId = conn.getRemoteSocketAddress().getAddress().getHostAddress() + ":" + conn.getRemoteSocketAddress().getPort();
+                ConsoleLogger.loggConsole("[$] CREATE_MEETING request received from " + networkId + ".", Colour.PURPLE);
+                CreateMeeting createMeeting = (CreateMeeting) superMessage.getMessage();
+                messageIdAck = createMeeting.getMessageId()+1;
+                if(users.get(conn) == null) {
+                    if(meetings.size()+1 <= 5) {
+                        // 1st step: create new user, who will be the host of the meeting, and add it to server
+                        User host = new User(idGenerator(IdType.USER_ID), createMeeting.getPseudo());
+                        users.put(conn, host);
+                        // 2nd step: create new meeting and add it to the server's hosted meetings
+                        meeting = new Meeting(idGenerator(IdType.MEETING_ID), host);
+                        meeting.setHost(host);
+                        meetings.add(meeting);
+                        ConsoleLogger.loggConsole("[+] New meeting created by " + host.getPseudo() + ": " + meeting.getMeetingId(), Colour.GREEN);
+                        // 3rd step: send back to the host a confirmation message
+                        MeetingCreated meetingCreated = new MeetingCreated(messageIdAck, meeting.getMeetingId(), host.getUserId());
+                        sendMessage(conn, meetingCreated, MessageType.MEETING_CREATED);
+                        ConsoleLogger.loggConsole(toString(), Colour.DEFAULT);
+                    } else { ServerFullError error = new ServerFullError(messageIdAck); }
+                } else sendMessage(conn, new MeetingAlreadyCreatedError(createMeeting.getMessageId()+1), MessageType.MEETING_ALREADY_CREATED_ERROR);
+                break;
+            case JOIN_MEETING:
+                JoinMeeting joinMeeting = (JoinMeeting) superMessage.getMessage();
+                meeting = findMeetingByMeetingId(joinMeeting.getMeetingId());
+                if(meeting != null) {
+                    if(users.get(conn) == null) { // If this is not null, it means this connection has already created a user
+                        if(!meeting.pseudoAlreadyExists(joinMeeting.getPseudo())) {
+                            User newUser = new User(idGenerator(IdType.USER_ID), joinMeeting.getPseudo());
+                            meeting.getUsers().add(newUser);
+                            users.put(conn, newUser);
+                            // Sending the confirmation the meeting was joined
+                            MeetingJoined meetingJoined = new MeetingJoined(joinMeeting.getMessageId()+1, meeting.getMeetingId(), newUser.getUserId());
+                            sendMessage(conn, meetingJoined, MessageType.MEETING_JOINED);
+                            ConsoleLogger.loggConsole("[+] " + newUser.getPseudo() + " joined the following meeting: " + meeting.getMeetingId(), Colour.GREEN);
+                            // We also need to send the user all the whiteboard objects
+                            List<BoardUpdateComponent> components = meeting.getWhiteboard().getAllObjects();
+                            BoardUpdate boardUpdate = new BoardUpdate(
+                                    joinMeeting.getMessageId()+2,
+                                    components
+                            );
+                            sendMessage(conn, boardUpdate, MessageType.BOARD_UPDATE);
+                            // Broadcasting the new user to the existing users
+                            UserBroadcast userBroadcast = new UserBroadcast(messageIdGenerator(), newUser.getPseudo());
+                            broadcastMessage(userBroadcast, conn, MessageType.USER_BROADCAST);
+                            ConsoleLogger.loggConsole(toString(), Colour.DEFAULT);
+                        } else sendMessage(conn, new BusyPseudoError(joinMeeting.getMessageId()+1), MessageType.BUSY_PSEUDO_ERROR);
+                    } else sendMessage(conn, new AlreadyInMeetingError(joinMeeting.getMessageId()+1), MessageType.ALREADY_IN_MEETING_ERROR);
+                } else sendMessage(conn, new NonExistentMeetingError(joinMeeting.getMessageId()+1), MessageType.NON_EXISTENT_MEETING_ERROR);
+                break;
+            case LEAVE_MEETING:
+                /*
+                    If the client sends a LeaveMeeting message and don't wait for the answer to close the socket,
+                    a Runtime error is thrown as the connection doesn't exist anymore.
+                    => FIX?
+                 */
+                LeaveMeeting leaveMeeting = (LeaveMeeting) superMessage.getMessage();
+                if(!isUserAuth(leaveMeeting.getUserId(), conn)) {
+                    sendMessage(conn, new UserNotAuthError(leaveMeeting.getMessageId()+1), MessageType.USER_NOT_AUTH_ERROR);
+                    break;
+                }
+                String pseudo = users.get(conn).getPseudo();
+                // Sending confirmation that the user left the meeting
+                MeetingLeft meetingLeft = new MeetingLeft(
+                        leaveMeeting.getMessageId()+1,
+                        leaveMeeting.getMeetingId(),
+                        leaveMeeting.getUserId()
+                );
+                sendMessage(conn, meetingLeft, MessageType.MEETING_LEFT);
+                // Closing the connection
+                conn.close();
+                ConsoleLogger.loggConsole("[-] " + pseudo + " left the following meeting: " + leaveMeeting.getMeetingId(), Colour.YELLOW);
+                // Broadcasting that the user has left
+                UserLeftBroadcast userLeftBroadcast = new UserLeftBroadcast(messageIdGenerator(), pseudo);
+                broadcastMessage(userLeftBroadcast, conn, MessageType.USER_LEFT_BROADCAST);
+                ConsoleLogger.loggConsole(toString(), Colour.DEFAULT);
+                break;
+            case SELECT:
+                SelectObject selectObject = (SelectObject) superMessage.getMessage();
+                if(!isUserAuth(selectObject.getUserId(), conn)) {
+                    sendMessage(conn, new UserNotAuthError(selectObject.getMessageId()+1), MessageType.USER_NOT_AUTH_ERROR);
+                    break;
+                }
+                existingUser = users.get(conn);
+                meeting = findMeetingByUserId(existingUser.getUserId());
+                boardObject = meeting.getWhiteboard().getBoardObjectByObjectId(selectObject.getObjectId());
+                if(boardObject != null) {
+                    if(!boardObject.getIsLocked()) {
+                        // We need to update the following object's properties: isLocked & ownerId
+                        boardObject.setIsLocked(true);
+                        boardObject.setOwnerId(existingUser.getUserId());
+                        // The checksum is the one of the object AFTER THE MODIFICATIONS
+                        String checksum = generateSha256Hash(objectSerialize(boardObject));
+                        ObjectSelected objectSelected = new ObjectSelected(selectObject.getMessageId()+1, checksum);
+                        sendMessage(conn, objectSelected, MessageType.OBJECT_SELECTED);
+                        // Broadcasting the object with the new modifications
+                        ChangeBroadcast changeBroadcast = new ChangeBroadcast(selectObject.getMessageId()+1, boardObject);
+                        broadcastMessage(changeBroadcast, conn, MessageType.CHANGE_BROADCAST);
+                    } else sendMessage(conn, new BusyObjectError(selectObject.getMessageId()+1), MessageType.BUSY_OBJECT_ERROR);
+                } else sendMessage(conn, new ObjectNotFoundError(selectObject.getMessageId()+1), MessageType.OBJECT_NOT_FOUND_ERROR);
+                break;
+            case UNSELECT:
+                UnselectObject unselectObject = (UnselectObject) superMessage.getMessage();
+                if(!isUserAuth(unselectObject.getUserId(), conn)) {
+                    sendMessage(conn, new UserNotAuthError(unselectObject.getMessageId()+1), MessageType.USER_NOT_AUTH_ERROR);
+                    break;
+                }
+                existingUser = users.get(conn);
+                meeting = findMeetingByUserId(existingUser.getUserId());
+                boardObject = meeting.getWhiteboard().getBoardObjectByObjectId(unselectObject.getObjectId());
+                if(boardObject != null) {
+                    // If the object is locked
+                    if (boardObject.getIsLocked()) {
+                        //  If the object's owner is the same as the sender of the request
+                        if (boardObject.getOwnerId().equals(existingUser.getUserId())) {
+                            // Changing the state of the object to unselected
+                            boardObject.setIsLocked(true);
+                            // Sending confirmation to the source
+                            String checksum = generateSha256Hash(objectSerialize(boardObject));
+                            ObjectUnselected objectUnselected = new ObjectUnselected(unselectObject.getMessageId() + 1, checksum);
+                            sendMessage(conn, objectUnselected, MessageType.OBJECT_UNSELECTED);
+                            // Broadcasting the object with the new modifications
+                            ChangeBroadcast changeBroadcast = new ChangeBroadcast(messageIdGenerator(), boardObject);
+                            broadcastMessage(changeBroadcast, conn, MessageType.CHANGE_BROADCAST);
+                        } else sendMessage(conn, new ObjectNotOwnedError(unselectObject.getMessageId() + 1), MessageType.OBJECT_NOT_OWNED_ERROR);
+                    } else sendMessage(conn, new ObjectNotSelectedError(unselectObject.getMessageId()+1), MessageType.OBJECT_NOT_SELECTED_ERROR);
+                } else sendMessage(conn, new ObjectNotFoundError(unselectObject.getMessageId()+1), MessageType.OBJECT_NOT_FOUND_ERROR);
+                break;
+            case DELETE:
+                DeleteObject deleteObject = (DeleteObject) superMessage.getMessage();
+                if(!isUserAuth(deleteObject.getUserId(), conn)) {
+                    sendMessage(conn, new UserNotAuthError(deleteObject.getMessageId()+1), MessageType.USER_NOT_AUTH_ERROR);
+                    break;
+                }
+                existingUser = users.get(conn);
+                meeting = findMeetingByUserId(existingUser.getUserId());
+                boardObject = meeting.getWhiteboard().getBoardObjectByObjectId(deleteObject.getObjectId());
+                if(boardObject != null) {
+                    if(!boardObject.getIsLocked()) {
+                        // The checksum here is the one of the object before deletion (only case where that happens)
+                        String checksum = generateSha256Hash(objectSerialize(boardObject));
+                        // Sending confirmation to the source
+                        meeting.getWhiteboard().getBoardObjects().remove(boardObject);
+                        ObjectDeleted objectDeleted = new ObjectDeleted(deleteObject.getMessageId()+1, checksum);
+                        sendMessage(conn, objectDeleted, MessageType.OBJECT_DELETED);
+                        // Broadcasting the object with the new modifications
+                        DeleteBroadcast deleteBroadcast = new DeleteBroadcast(messageIdGenerator(), deleteObject.getObjectId());
+                        broadcastMessage(deleteBroadcast, conn, MessageType.DELETE_BROADCAST);
+                        ConsoleLogger.loggConsole(toString(), Colour.DEFAULT);
+                    } else sendMessage(conn, new BusyObjectError(deleteObject.getMessageId()+1), MessageType.BUSY_OBJECT_ERROR);
+                } else sendMessage(conn, new ObjectNotFoundError(deleteObject.getMessageId()+1), MessageType.OBJECT_NOT_FOUND_ERROR);
+                break;
+            case EDIT:
+                EditObject editObject = (EditObject) superMessage.getMessage();
+                if(!isUserAuth(editObject.getUserId(), conn)) {
+                    sendMessage(conn, new UserNotAuthError(editObject.getMessageId()+1), MessageType.USER_NOT_AUTH_ERROR);
+                    break;
+                }
+                existingUser = users.get(conn);
+                meeting = findMeetingByUserId(existingUser.getUserId());
+                boardObject = meeting.getWhiteboard().getBoardObjectByObjectId(editObject.getObjectId());
+                // We need to check first if the object is selected by the user already
+                if(!boardObject.getIsLocked() || !boardObject.getOwnerId().equals(editObject.getUserId())) {
+                    sendMessage(conn, new ObjectNotOwnedError(editObject.getMessageId()+1), MessageType.OBJECT_NOT_OWNED_ERROR);
+                    break;
+                }
+
+                String checksum;
+                // If we got here, it means that:
+                //      => The user is allowed to perform the action, as it owns the object.
+                switch(editObject.getEditType()) {
+                    case POSITION_CHANGE:
+                        PositionChange positionChange = (PositionChange) editObject.getChange();
+                        // We need to check also if the new position chosen is not busy (occupied by another object).
+                        if(meeting.getWhiteboard().coordinatesAreBusy(positionChange.getNewPosition())) {
+                            sendMessage(conn, new BusyCoordinatesError(editObject.getMessageId()+1), MessageType.BUSY_COORDINATES_ERROR);
+                            break;
+                        }
+                        boardObject.setCoordinates(positionChange.getNewPosition());
+                        checksum = generateSha256Hash(objectSerialize(boardObject));
+                        PositionChanged positionChanged = new PositionChanged(editObject.getMessageId()+1, checksum);
+                        sendMessage(conn, positionChanged, MessageType.POSITION_CHANGED);
+                        break;
+                    case COLOUR_CHANGE:
+                        if(boardObject instanceof Image) {
+                            sendMessage(conn, new ChangeNotAllowedError(editObject.getMessageId()+1), MessageType.CHANGE_NOT_ALLOWED_ERROR);
+                            break;
+                        }
+                        ColourChange colourChange = (ColourChange) editObject.getChange();
+                        boardObject.setColour(colourChange.getNewColour());
+                        checksum = generateSha256Hash(objectSerialize(boardObject));
+                        ColourChanged colourChanged = new ColourChanged(editObject.getMessageId()+1, checksum);
+                        sendMessage(conn, colourChanged, MessageType.COLOR_CHANGED);
+                        break;
+                    case COMMENT_CHANGE:
+                        if(boardObject instanceof Drawing || boardObject instanceof StickyNote) {
+                            sendMessage(conn, new ChangeNotAllowedError(editObject.getMessageId()+1), MessageType.CHANGE_NOT_ALLOWED_ERROR);
+                            break;
+                        }
+                        CommentChange commentChange = (CommentChange) editObject.getChange();
+                        Image image = (Image) boardObject;
+                        image.setComment(commentChange.getNewComment());
+                        checksum = generateSha256Hash(objectSerialize(image));
+                        CommentChanged commentChanged = new CommentChanged(editObject.getMessageId()+1, checksum);
+                        sendMessage(conn, commentChanged, MessageType.COMMENT_CHANGED);
+                        break;
+                }
+                ChangeBroadcast changeBroadcast = new ChangeBroadcast(messageIdGenerator(), boardObject);
+                broadcastMessage(changeBroadcast, conn, MessageType.CHANGE_BROADCAST);
+                break;
         }
-         */
     }
 
     @Override
-    public void onError(WebSocket webSocket, Exception e) {
+    public void onError(WebSocket webSocket, Exception e) {}
 
+    @Override
+    public void onStart() {
+        ConsoleLogger.loggConsole("[i] Starting the server...", Colour.WHITE);
     }
 
     @Override
@@ -145,35 +346,153 @@ public class WhiteboardServer extends WebSocketServer {
             for (User user : meeting.getUsers()) {
                 toString.append("> ").append(user.getPseudo()).append(System.lineSeparator());
             }
+            toString.append("- Current objects:").append(System.lineSeparator());
+            for (BoardObject boardObject : meeting.getWhiteboard().getBoardObjects()) {
+                toString.append("> ")
+                        .append(boardObject.getClass().getSimpleName())
+                        .append(", ID: ").append(boardObject.getObjectId())
+                        .append(", locked: ").append(boardObject.getIsLocked())
+                        .append(", owner ID: ").append(boardObject.getOwnerId())
+                        .append(System.lineSeparator());
+            }
+            toString.append("- Total users: ").append(meeting.getTotalUsers()).append(System.lineSeparator());
         }
         return toString.toString();
     }
 
-    @Override
-    public void onStart() {
-        System.out.println("Starting the server...");
+    private void addObjectToBoard(CreateObject createObject, WebSocket conn) {
+
+        ObjectType objectType = createObject.getObjectType();
+        BoardObject boardObject = createObject.getBoardObject();
+        User existingUser = users.get(conn);
+        int messageIdAck = createObject.getMessageId()+1;
+        Meeting meeting = findMeetingByUserId(existingUser.getUserId());
+
+        String objectId = null;
+
+        // We need to make sure the ID we generate for the object is unique
+        boolean alreadyTaken = true;
+        while(alreadyTaken) {
+            objectId = idGenerator(IdType.OBJECT_ID);
+            alreadyTaken = meeting.getWhiteboard().objectIdAlreadyTaken(objectId);
+        }
+
+        if(!meeting.getWhiteboard().coordinatesAreBusyByObject(boardObject)) {
+            boardObject.setObjectId(objectId);
+            boardObject.setIsLocked(true);
+            boardObject.setOwnerId(existingUser.getUserId());
+
+            String sha256hash = null;
+            ChangeBroadcast changeBroadcast = null;
+
+            switch (objectType) {
+                case STICKY_NOTE -> {
+                    StickyNote stickyNote = (StickyNote) boardObject;
+                    meeting.getWhiteboard().getBoardObjects().add(stickyNote);
+                    ConsoleLogger.loggConsole("[+] StickyNote created and added to meeting " + meeting.getMeetingId() + " by " + existingUser.getPseudo(), Colour.GREEN);
+                    String serializedStickyNote = objectSerialize(stickyNote);
+                    sha256hash = generateSha256Hash(serializedStickyNote);
+                    changeBroadcast = new ChangeBroadcast(messageIdGenerator(), boardObject);
+                }
+                case IMAGE -> {
+                    Image image = (Image) boardObject;
+                    meeting.getWhiteboard().getBoardObjects().add(image);
+                    ConsoleLogger.loggConsole("[+] Image created and added to meeting " + meeting.getMeetingId() + " by " + existingUser.getPseudo(), Colour.GREEN);
+                    String serializedImage = objectSerialize(image);
+                    sha256hash = generateSha256Hash(serializedImage);
+                    changeBroadcast = new ChangeBroadcast(messageIdGenerator(), image);
+                }
+                case DRAWING -> {
+                    Drawing drawing = (Drawing) boardObject;
+                    meeting.getWhiteboard().getBoardObjects().add(drawing);
+                    ConsoleLogger.loggConsole("[+] Drawing created and added to meeting " + meeting.getMeetingId() + " by " + existingUser.getPseudo(), Colour.GREEN);
+                    String serializedDrawing = objectSerialize(drawing);
+                    sha256hash = generateSha256Hash(serializedDrawing);
+                    changeBroadcast = new ChangeBroadcast(messageIdGenerator(), drawing);
+                }
+            }
+            ObjectCreated objectCreated = new ObjectCreated(messageIdAck, objectId, sha256hash);
+            sendMessage(conn, objectCreated, MessageType.OBJECT_CREATED);
+            broadcastMessage(changeBroadcast, conn, MessageType.CHANGE_BROADCAST);
+        } else { sendMessage(conn, new BusyCoordinatesError(messageIdAck), MessageType.BUSY_COORDINATES_ERROR); }
+
     }
 
-    /**
-     * This method broadcasts a message to all the connected users.
-     * @param msg
-     */
-    private void broadcastMessage(SuperMessage msg) {
-        ObjectMapper mapper = new ObjectMapper();
-        try {
-            String messageJson = mapper.writeValueAsString(msg);
-            for (WebSocket sock : conns) {
-                sock.send(messageJson);
+    private void broadcastMessage(Object object, WebSocket notToSendTo, MessageType messageType) {
+        // Finding the meeting with all the users inside
+        String userId = users.get(notToSendTo).getUserId();
+        Meeting meeting = findMeetingByUserId(userId);
+        // Broadcasting the message
+        for (WebSocket webSocket : getAllSocketsFromMeeting(meeting)) {
+            // If the source of the creation/change (a user) is the same as the one we're sending the message to,
+            // we need to do nothing.
+            if(notToSendTo != webSocket) {
+                sendMessage(webSocket, object, messageType);
             }
-        } catch (JsonProcessingException e) {
-            System.err.println("Cannot convert message to json.");
         }
     }
 
-    /**
-     * This method generates an 8-chars long string that represents a user ID.
-     * @return userId: The newly generated user ID
-     */
+    private Set<WebSocket> getAllSocketsFromMeeting(Meeting meeting) {
+        Set<WebSocket> set = new HashSet<WebSocket>();
+        for(User userToAdd : meeting.getUsers()) {
+            for (Map.Entry<WebSocket, User> entry : users.entrySet()) {
+                if (Objects.equals(userToAdd, entry.getValue()) || Objects.equals(meeting.getHost(), entry.getValue())) {
+                    set.add(entry.getKey());
+                }
+            }
+        }
+        return set;
+    }
+
+    private void sendMessage(WebSocket conn, Object object, MessageType type) {
+        try {
+            SuperMessage superMessage = new SuperMessage(type, (Message) object);
+            conn.send(mapper.writeValueAsString(superMessage));
+        } catch (JsonProcessingException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private String objectSerialize(Object object) {
+        try {
+            return mapper.writeValueAsString(object);
+        } catch (JsonProcessingException e) {
+            e.printStackTrace();
+            return null;
+        }
+    }
+
+    private SuperMessage superMessageDeserialize(String object) {
+        try {
+            return mapper.readValue(object, SuperMessage.class);
+        } catch (JsonProcessingException e) {
+            if(e.getMessage().startsWith("No content to map")) System.err.println("[e] Error: Empty message received, can't deserialize.");
+            else if (e.getMessage().startsWith("Unrecognized token")) System.err.println("[e] Error: Wrong message format.");
+            else System.err.println("[e] Error in deserializing incoming JSON message: " + e.getMessage());
+            return null;
+        }
+    }
+
+    private boolean isUserAuth(String userId, WebSocket conn) {
+        /*
+            To check if a user is authenticated, we need to look at two things:
+            -   The userID provided in the request exists on the server.
+                => The user is in a meeting.
+            -   The WebSocket used to send the request is the same as the one used
+                when the user joined the meeting or created it.
+                => Need to look in the users HashSet.
+         */
+        Meeting meeting = findMeetingByUserId(userId);
+        if(meeting != null) {
+            User user = users.get(conn);
+            if(user != null) {
+                return users.get(conn).getUserId().equals(userId);
+            } else return false;
+        } else {
+            return false;
+        }
+    }
+
     private String idGenerator(IdType idType) {
         int leftLimit = 48; // numeral '0'
         int rightLimit = 122; // letter 'z'
@@ -181,6 +500,7 @@ public class WhiteboardServer extends WebSocketServer {
         switch(idType) {
             case USER_ID -> targetStringLength = 8;
             case MEETING_ID -> targetStringLength = 16;
+            case OBJECT_ID -> targetStringLength = 4;
             default -> targetStringLength = 0;
         }
         Random random = new Random();
@@ -192,13 +512,24 @@ public class WhiteboardServer extends WebSocketServer {
         return id;
     }
 
+    private int messageIdGenerator() {
+        Random random = new Random();
+        return random.nextInt(9999999);
+    }
+
+    private String generateSha256Hash(String serializedObject) {
+        HashFunction hashFunction = Hashing.sha256();
+        HashCode hash = hashFunction.hashString(serializedObject, StandardCharsets.UTF_8);
+        return hash.toString();
+    }
+
     /**
      * This method goes through all the meetings hosted by the server and returns a reference on the meeting
-     * object for which the meeting ID is the same than the one provided in the parameters.s
+     * object for which the meeting ID is the same as the one provided in the parameters.
      * @param meetingId
      * @return meeting: a reference on the found meeting; null if nothing was found.
      */
-    private Meeting findMeeting(String meetingId) {
+    private Meeting findMeetingByMeetingId(String meetingId) {
         for (Meeting meeting : meetings) {
             if(meeting.getMeetingId().equals(meetingId)) {
                 return meeting;
@@ -208,52 +539,22 @@ public class WhiteboardServer extends WebSocketServer {
     }
 
     /**
-     * This method is called when a JSON message needs to be sent over a WebSocket to a client.
-     * @param conn
-     * @param object
+     * This method goes through all the meetings hosted by the servers and returns a reference on the meeting
+     * object in which a user with the same userId exists.
+     * @param userId
+     * @return meeting: a reference on the found meeting; null if nothing was found.
      */
-    private void sendMessage(WebSocket conn, Object object, MessageType type) {
-        try {
-            JsonNode node = mapper.readTree(mapper.writeValueAsString(object));
-            SuperMessage msg = new SuperMessage(type, node);
-            conn.send(mapper.writeValueAsString(msg));
-
-            if(object.getClass() == NonExistentMeeting.class) {
-                conn.close();
+    private Meeting findMeetingByUserId(String userId) {
+        for (Meeting meeting : meetings) {
+            User host = meeting.getHost();
+            if(host.getUserId().equals(userId)) return meeting;
+            for(User user : meeting.getUsers()) {
+                if(user.getUserId().equals(userId)) {
+                    return meeting;
+                }
             }
-        } catch (JsonProcessingException ex) {
-            ex.printStackTrace();
         }
-    }
-
-
-    /*
-    public int generateMessageId () {
-        byte[] macAddress = getMacAddress();
-        byte[] toMerge = new byte[2];
-        Random random = new Random();
-        random.nextBytes(toMerge);
-        byte[] c = new byte[macAddress.length + toMerge.length];
-        System.arraycopy(macAddress, 0, c, 0, macAddress.length);
-        System.arraycopy(toMerge, 0, c, macAddress.length, toMerge.length);
-        return ByteBuffer.wrap(c).getInt();
-    }
-     */
-
-    /**
-     * This function returns the MAC address of the server as an array of bytes.
-     * @return
-     */
-    private byte[] getMacAddress() {
-        InetAddress localHost = null;
-        try {
-            localHost = InetAddress.getLocalHost();
-            NetworkInterface ni = NetworkInterface.getByInetAddress(localHost);
-            return ni.getHardwareAddress();
-        } catch (IOException e) {
-            e.printStackTrace();
-            return null;
-        }
+        return null;
     }
 
 }

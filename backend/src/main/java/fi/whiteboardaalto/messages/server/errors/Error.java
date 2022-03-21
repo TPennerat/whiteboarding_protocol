@@ -1,19 +1,21 @@
 package fi.whiteboardaalto.messages.server.errors;
 
-public class Error {
-    private int code;
+import fi.whiteboardaalto.messages.server.Answer;
+
+public class Error extends Answer {
     private String message;
 
-    public Error(int code, String message) {
-        this.code = code;
+    public Error(int messageId, int code, String message) {
+        super(messageId, code);
         this.message = message;
-    }
-
-    public int getCode() {
-        return code;
     }
 
     public String getMessage() {
         return message;
     }
+
+    public void setMessage(String message) {
+        this.message = message;
+    }
+
 }
