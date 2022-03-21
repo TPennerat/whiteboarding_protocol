@@ -1430,12 +1430,17 @@ const whiteboard = {
     }
   },
   handleEventsAndData: function (content, isNewData, doneCallback) {
+    console.log("HandleEvent");
+    console.log(content);
+
     var _this = this;
     var tool = content["t"];
     var data = content["d"];
     var color = content["c"];
     var username = content["username"];
     var thickness = content["th"];
+
+    console.log(content);
 
     window.requestAnimationFrame(function () {
       if (tool === "line" || tool === "pen") {
@@ -1672,6 +1677,7 @@ const whiteboard = {
     return JSON.stringify(sendObj, null, 2);
   },
   loadData: function (content) {
+    console.log(content);
     var _this = this;
     _this.loadDataInSteps(content, true, function (stepData) {
       if (
