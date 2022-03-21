@@ -1262,19 +1262,16 @@ const whiteboard = {
 
     img.src = this.imgWithSrc(url).attr("src"); // or here - but consistent
   },
-  undoWhiteboard: function (username) {
+  undoWhiteboard: function () {
     //Not call this directly because you will get out of sync whith others...
     var _this = this;
-    if (!username) {
-      username = _this.settings.username;
-    }
     for (var i = _this.drawBuffer.length - 1; i >= 0; i--) {
-      if (_this.drawBuffer[i]["username"] == username) {
-        var drawId = _this.drawBuffer[i]["drawId"];
+      if (_this.drawBuffer[i].userId === _this.settings.userId) {
+        var drawId = _this.drawBuffer[i];
         for (var i = _this.drawBuffer.length - 1; i >= 0; i--) {
           if (
-            _this.drawBuffer[i]["drawId"] == drawId &&
-            _this.drawBuffer[i]["username"] == username
+            _this.drawBuffer[i]["drawId"] === drawId &&
+            _this.drawBuffer[i].userId === _this.settings.userId
           ) {
             _this.undoBuffer.push(_this.drawBuffer[i]);
             _this.drawBuffer.splice(i, 1);
@@ -1288,7 +1285,7 @@ const whiteboard = {
     }
     _this.canvas.height = _this.canvas.height;
     _this.imgContainer.empty();
-    _this.loadDataInSteps(_this.drawBuffer, false, function (stepData) {
+    _this.loadDataInSteps(_this.drawBuffer, false, (stepData) => {
       //Nothing to do
     });
   },
@@ -1322,20 +1319,6 @@ const whiteboard = {
   undoWhiteboardClick: function () {
     var _this = this;
     if (ReadOnlyService.readOnlyActive) return;
-    _this.sendFunction(MessageType.CREATE_OBJECT, {
-      objectType: _this.tool,
-      objectId: _this.drawId,
-      boardObject: {
-        objectId: _this.drawId,
-        ownerId: "???",
-        isLocked: false,
-        coordinates: {
-          x: currentPos.x,
-          y: currentPos.y,
-        },
-        colour: hexToRgb(_this.drawcolor),
-      },
-    });
     this.undoWhiteboard();
   },
   redoWhiteboardClick: function () {

@@ -92,7 +92,9 @@ function main() {
           response.message.objectId;
         drawBufferIndex++;
         break;
-
+      case MessageType.POSITION_CHANGE:
+        // TODO something ??
+        break;
       default:
         showBasicAlert("Unknown response" + event.data);
     }
