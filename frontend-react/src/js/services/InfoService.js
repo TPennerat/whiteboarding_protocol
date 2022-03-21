@@ -94,6 +94,8 @@ class InfoService {
     $("#smallestScreenResolution")[0].innerText = ssr
       ? `(${ssr.w}, ${ssr.h})`
       : "Unknown";
+
+    // console.log()
   }
 
   /**

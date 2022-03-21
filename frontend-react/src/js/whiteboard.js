@@ -1431,11 +1431,40 @@ const whiteboard = {
     }
   },
   handleEventsAndData: function (content, isNewData, doneCallback) {
+    console.log("HandleEvent");
+    console.log(content);
+
     var _this = this;
-    var tool = content["t"];
+    // var tool = content["t"];
+    // console.log(content);
+    var boardObject = content.message.boardObject;
+    // console.log(boardObject);
+
+    // MIDDLEWARE
+    var data = [
+      _this.drawcolor,
+      _this.textboxBackgroundColor,
+      "15",
+      boardObject.coordinates.x,
+      boardObject.coordinates.y,
+      "fdfdfdf",
+      true,
+      false,
+    ];
+
+    content = {
+      t: "addTextBox",
+      d: data,
+      c: _this.drawcolor,
+      u: boardObject.ownerId,
+      th: 1,
+    };
+
+    var tool = "addTextBox";
     var data = content["d"];
     var color = content["c"];
-    var username = content["username"];
+    var username = content["ownerId"];
+
     var thickness = content["th"];
 
     window.requestAnimationFrame(function () {
@@ -1501,6 +1530,7 @@ const whiteboard = {
           data[5],
           data[6]
         );
+        _this.setTextboxText(boardObject.objectId, boardObject.text);
       } else if (tool === "setTextboxText") {
         _this.setTextboxText(data[0], data[1]);
       } else if (tool === "removeTextbox") {
@@ -1673,6 +1703,7 @@ const whiteboard = {
     return JSON.stringify(sendObj, null, 2);
   },
   loadData: function (content) {
+    console.log(content);
     var _this = this;
     _this.loadDataInSteps(content, true, function (stepData) {
       if (

@@ -40,6 +40,7 @@ function main() {
   socketjs.addEventListener("message", function (event) {
     const response = JSON.parse(event.data);
     console.log("Réponse serveur:\n", response);
+
     switch (response.messageType) {
       case MessageType.MEETING_CREATED:
         userId = response.message.userId;
@@ -87,6 +88,13 @@ function main() {
         whiteboard.loadData(response);
         break;
       case MessageType.OBJECT_CREATED:
+        console.log("object_created");
+        content = response;
+        break;
+      case MessageType.CHANGE_BROADCAST:
+        console.log("CHANGE_BROADCAST v1");
+        var content = response;
+        whiteboard.handleEventsAndData(content, true);
         whiteboard.drawBuffer[drawBufferIndex].objectId =
           response.message.objectId;
         whiteboard.drawBuffer[drawBufferIndex].boardObject.objectId =
