@@ -4,9 +4,7 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
-import fi.whiteboardaalto.objects.BoardObject;
-import fi.whiteboardaalto.objects.ObjectType;
-import fi.whiteboardaalto.objects.StickyNote;
+import fi.whiteboardaalto.objects.*;
 
 public class CreateObject extends ObjectAction {
 
@@ -26,7 +24,9 @@ public class CreateObject extends ObjectAction {
 
     @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, include = JsonTypeInfo.As.EXTERNAL_PROPERTY, property = "objectType")
     @JsonSubTypes(value = {
-            @JsonSubTypes.Type(value = StickyNote.class, name = "STICKY_NOTE")
+            @JsonSubTypes.Type(value = StickyNote.class, name = "STICKY_NOTE"),
+            @JsonSubTypes.Type(value = Drawing.class, name = "DRAWING"),
+            @JsonSubTypes.Type(value = Image.class, name = "IMAGE")
     })
     public void setBoardObject(BoardObject boardObject) {
         this.boardObject = boardObject;

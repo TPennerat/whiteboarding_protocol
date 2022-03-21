@@ -6,7 +6,7 @@ public class Main {
 
     public static void main(String[] args) {
         BasicConfigurator.configure();
-        new WhiteboardServer(4444).start();
+        new WhiteboardServer(44567).start();
     }
 
 }
