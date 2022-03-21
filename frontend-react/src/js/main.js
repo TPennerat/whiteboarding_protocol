@@ -38,6 +38,10 @@ function main() {
   socketjs.addEventListener("message", function (event) {
     const response = JSON.parse(event.data);
     console.log("Réponse serveur:\n", response);
+    if (response.message.messageId !== MessageHelper.getActualMessageId()) {
+      showBasicAlert("Wrong messageId");
+      return;
+    }
     switch (response.messageType) {
       case MessageType.MEETING_CREATED:
         userId = response.message.userId;
@@ -83,9 +87,12 @@ function main() {
         break;
       case MessageType.BOARD_UPDATE:
         whiteboard.loadData(response);
+      case MessageType.OBJECT_CREATED:
+        console.log("object_created");
       default:
         showBasicAlert("Unknown response" + event.data);
     }
+    MessageHelper.incrementMessageId();
   });
 
   // when user disconnect suddenly (aka close the tab or browser)

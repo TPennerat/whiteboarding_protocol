@@ -1,8 +1,20 @@
 class MessageHelper {
+  messageId = 0;
+
   constructor() {}
 
   generateId() {
-    return "0";
+    const lastMessageId = this.messageId;
+    this.messageId++;
+    return lastMessageId;
+  }
+
+  incrementMessageId() {
+    this.messageId++;
+  }
+
+  getActualMessageId() {
+    return this.messageId;
   }
 }
 
