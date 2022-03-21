@@ -916,14 +916,8 @@ const whiteboard = {
     var _this = this;
     var oldTool = _this.tool;
 
-    const { imageURL } = ConfigService;
-    var finalURL = url;
-    if (imageURL && url.startsWith("/uploads/")) {
-      finalURL = imageURL + url;
-    }
-
-    var img = this.imgWithSrc(finalURL).css({ width: "100%", height: "100%" });
-    finalURL = img.attr("src");
+    var img = this.imgWithSrc(url).css({ width: "100%", height: "100%" });
+    url = img.attr("src");
 
     _this.setTool("mouse"); //Set to mouse tool while dropping to prevent errors
     _this.imgDragActive = true;
@@ -967,18 +961,11 @@ const whiteboard = {
 
         if (draw == "1") {
           //draw image to canvas
-          _this.drawImgToCanvas(
-            finalURL,
-            width,
-            height,
-            left,
-            top,
-            rotationAngle
-          );
+          _this.drawImgToCanvas(url, width, height, left, top, rotationAngle);
         } else {
           //Add image to background
           _this.drawImgToBackground(
-            finalURL,
+            url,
             width,
             height,
             left,
@@ -986,16 +973,6 @@ const whiteboard = {
             rotationAngle
           );
         }
-
-        console.log(finalURL);
-
-        // add img bg
-        _this.sendFunction({
-          t: "addImgBG",
-          draw: draw,
-          url: finalURL,
-          d: [width, height, left, top, rotationAngle],
-        });
         _this.drawId++;
         imgDiv.remove();
         _this.refreshCursorAppearance();
@@ -1184,7 +1161,7 @@ const whiteboard = {
         messageId: MessageHelper.generateId(),
         userId: _this.userId,
         objectId: _this.drawBuffer[drawBufferId].objectId,
-        editType: MessageType.TEXT_CHANGED,
+        editType: MessageType.TEXT_CHANGE,
         change: {
           changeId: _this.changeId,
           newText: text,

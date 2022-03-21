@@ -29,7 +29,7 @@ let userId = null;
 let drawBufferIndex = 0;
 
 function main() {
-  socketjs = new WebSocket("ws://localhost:44567");
+  socketjs = new WebSocket("ws://192.168.1.100:44567");
 
   socketjs.addEventListener("open", function (event) {
     console.log("Websocket connected!");
@@ -1062,7 +1062,6 @@ function initWhiteboard() {
   //TODO need to see this
   function uploadImgAndAddToWhiteboard(base64data, filename) {
     const date = +new Date();
-    console.log(filename);
     socketjs.send(
       StringifyHelper.stringify(MessageType.CREATE_OBJECT, {
         messageId: MessageHelper.generateId(),
@@ -1076,17 +1075,12 @@ function initWhiteboard() {
           coordinates: { x: 200, y: 200 },
           comment: "",
           stringImage: base64data,
-          extension: filename.slice(-4),
+          extension: filename.slice(-3),
           colour: whiteboard.hexToRgb("#ff7eb9"),
         },
       })
     );
-    const { correspondingReadOnlyWid } = ConfigService;
-    // const filename = `${correspondingReadOnlyWid}_${date}.png`;
-    const rootUrl = document.URL.substr(0, document.URL.lastIndexOf("/"));
-    whiteboard.addImgToCanvasByUrl(
-      `${rootUrl}/uploads/${correspondingReadOnlyWid}/${filename}`
-    ); //Add image to canvas
+    whiteboard.addImgToCanvasByUrl(base64data); //Add image to canvas
   }
 
   // verify if filename refers to an image
