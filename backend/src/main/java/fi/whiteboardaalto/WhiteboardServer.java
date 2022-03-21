@@ -366,8 +366,16 @@ public class WhiteboardServer extends WebSocketServer {
         BoardObject boardObject = createObject.getBoardObject();
         User existingUser = users.get(conn);
         int messageIdAck = createObject.getMessageId()+1;
-        String objectId = idGenerator(IdType.OBJECT_ID);
         Meeting meeting = findMeetingByUserId(existingUser.getUserId());
+
+        String objectId = null;
+
+        // We need to make sure the ID we generate for the object is unique
+        boolean alreadyTaken = true;
+        while(alreadyTaken) {
+            objectId = idGenerator(IdType.OBJECT_ID);
+            alreadyTaken = meeting.getWhiteboard().objectIdAlreadyTaken(objectId);
+        }
 
         if(!meeting.getWhiteboard().coordinatesAreBusyByObject(boardObject)) {
             boardObject.setObjectId(objectId);

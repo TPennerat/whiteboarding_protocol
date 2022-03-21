@@ -65,4 +65,13 @@ public class Whiteboard {
         return boardUpdateComponents;
     }
 
+    public boolean objectIdAlreadyTaken(String objectId) {
+        for (BoardObject boardObject : boardObjects) {
+            if(boardObject.getObjectId().equals(objectId)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
 }
