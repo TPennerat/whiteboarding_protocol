@@ -20,6 +20,7 @@ import fi.whiteboardaalto.messages.server.ack.session.MeetingCreated;
 import fi.whiteboardaalto.messages.server.ack.session.MeetingJoined;
 import fi.whiteboardaalto.messages.server.ack.session.MeetingLeft;
 import fi.whiteboardaalto.messages.server.errors.*;
+import fi.whiteboardaalto.messages.server.errors.Error;
 import fi.whiteboardaalto.messages.server.update.*;
 import fi.whiteboardaalto.objects.*;
 import org.java_websocket.WebSocket;
@@ -166,13 +167,33 @@ public class WhiteboardServer extends WebSocketServer {
                 break;
             case LEAVE_MEETING:
                 /*
-                    If the client sends a LeaveMeeting message and don't wait for the answer to close the socket,
+                    If the client sends a LeaveMeeting message and doesn't wait for the answer to close the socket,
                     a Runtime error is thrown as the connection doesn't exist anymore.
                     => FIX?
                  */
+                // Checking if the user is authenticated
                 LeaveMeeting leaveMeeting = (LeaveMeeting) superMessage.getMessage();
                 if(!isUserAuth(leaveMeeting.getUserId(), conn)) {
                     sendMessage(conn, new UserNotAuthError(leaveMeeting.getMessageId()+1), MessageType.USER_NOT_AUTH_ERROR);
+                    break;
+                }
+                // Meeting indicated in the message
+                meeting = findMeetingByMeetingId(leaveMeeting.getMeetingId());
+                // Meeting in which the user is
+                Meeting meetingFromUser = findMeetingByUserId(users.get(conn).getUserId());
+                // Checking if the meetingID is valid (right length)
+                if(!(leaveMeeting.getMeetingId().length() == 16)) {
+                    sendMessage(conn, new MessageMalformedError(leaveMeeting.getMessageId()+1), MessageType.MESSAGE_MALFORMED_ERROR);
+                    break;
+                }
+                // Checking if the meeting exists
+                if(meeting == null) {
+                    sendMessage(conn, new NonExistentMeetingError(leaveMeeting.getMessageId()+1), MessageType.NON_EXISTING_MEETING_ERROR);
+                    break;
+                }
+                // Checking if the meeting provided by the user is the right one
+                if(!meeting.getMeetingId().equals(meetingFromUser.getMeetingId())) {
+                    sendMessage(conn, new UserNotInMeetingError(leaveMeeting.getMessageId()+1), MessageType.USER_NOT_IN_MEETING_ERROR);
                     break;
                 }
                 String pseudo = users.get(conn).getPseudo();
@@ -230,7 +251,9 @@ public class WhiteboardServer extends WebSocketServer {
                         //  If the object's owner is the same as the sender of the request
                         if (boardObject.getOwnerId().equals(existingUser.getUserId())) {
                             // Changing the state of the object to unselected
-                            boardObject.setIsLocked(true);
+                            boardObject.setIsLocked(false);
+                            // Removing the owner
+                            boardObject.setOwnerId(null);
                             // Sending confirmation to the source
                             String checksum = generateSha256Hash(objectSerialize(boardObject));
                             ObjectUnselected objectUnselected = new ObjectUnselected(unselectObject.getMessageId() + 1, checksum);
@@ -252,18 +275,22 @@ public class WhiteboardServer extends WebSocketServer {
                 meeting = findMeetingByUserId(existingUser.getUserId());
                 boardObject = meeting.getWhiteboard().getBoardObjectByObjectId(deleteObject.getObjectId());
                 if(boardObject != null) {
-                    if(!boardObject.getIsLocked()) {
-                        // The checksum here is the one of the object before deletion (only case where that happens)
-                        String checksum = generateSha256Hash(objectSerialize(boardObject));
-                        // Sending confirmation to the source
-                        meeting.getWhiteboard().getBoardObjects().remove(boardObject);
-                        ObjectDeleted objectDeleted = new ObjectDeleted(deleteObject.getMessageId()+1, checksum);
-                        sendMessage(conn, objectDeleted, MessageType.OBJECT_DELETED);
-                        // Broadcasting the object with the new modifications
-                        DeleteBroadcast deleteBroadcast = new DeleteBroadcast(messageIdGenerator(), deleteObject.getObjectId());
-                        broadcastMessageToOthers(deleteBroadcast, conn, MessageType.DELETE_BROADCAST);
-                        ConsoleLogger.loggConsole(toString(), Colour.DEFAULT);
-                    } else sendMessage(conn, new BusyObjectError(deleteObject.getMessageId()+1), MessageType.BUSY_OBJECT_ERROR);
+                    // We need to check if the object has been selected priorly
+                    if(boardObject.getIsLocked()) {
+                        // We also need to check if the owner is the same as the user ID from the request
+                        if(boardObject.getOwnerId().equals(existingUser.getUserId())) {
+                            // The checksum here is the one of the object before deletion (only case where that happens)
+                            String checksum = generateSha256Hash(objectSerialize(boardObject));
+                            // Sending confirmation to the source
+                            meeting.getWhiteboard().getBoardObjects().remove(boardObject);
+                            ObjectDeleted objectDeleted = new ObjectDeleted(deleteObject.getMessageId()+1, checksum);
+                            sendMessage(conn, objectDeleted, MessageType.OBJECT_DELETED);
+                            // Broadcasting the object with the new modifications
+                            DeleteBroadcast deleteBroadcast = new DeleteBroadcast(messageIdGenerator(), deleteObject.getObjectId());
+                            broadcastMessageToOthers(deleteBroadcast, conn, MessageType.DELETE_BROADCAST);
+                            ConsoleLogger.loggConsole(toString(), Colour.DEFAULT);
+                        } else sendMessage(conn, new ObjectNotOwnedError(deleteObject.getMessageId()+1), MessageType.OBJECT_NOT_OWNED_ERROR);
+                    } else sendMessage(conn, new ObjectNotSelectedError(deleteObject.getMessageId()+1), MessageType.OBJECT_NOT_SELECTED_ERROR);
                 } else sendMessage(conn, new ObjectNotFoundError(deleteObject.getMessageId()+1), MessageType.OBJECT_NOT_FOUND_ERROR);
                 break;
             case EDIT:
