@@ -1117,23 +1117,30 @@ const whiteboard = {
       this.textContainer.append(textBox);
     }
 
-    textBox.find(".textContent").on("click", function (ev) {
+    // textBox.find(".textContent").on("click", function (ev) {
+    textBox.on("click", function (ev) {
       if (_this.selectedObject !== "") {
         if (_this.selectedObject !== _this.drawBuffer[drawBufferId].objectId) {
+          const tmp = _this.selectedObject;
+          _this.selectedObject = "";
           _this.sendFunction(MessageType.UNSELECT, {
             messageId: MessageHelper.generateId(),
             userId: _this.settings.userId,
-            objectId: _this.selectedObject,
+            objectId: tmp,
           });
+          _this.sendFunction(MessageType.SELECT, {
+            messageId: MessageHelper.generateId(),
+            userId: _this.settings.userId,
+            objectId: _this.drawBuffer[drawBufferId].objectId,
+          });
+          _this.selectedObject = _this.drawBuffer[drawBufferId].objectId;
         }
       } else {
-        console.log(_this.drawBuffer[drawBufferId]);
         _this.sendFunction(MessageType.SELECT, {
           messageId: MessageHelper.generateId(),
           userId: _this.settings.userId,
           objectId: _this.drawBuffer[drawBufferId].objectId,
         });
-        _this.selectedId = _this.drawBuffer[drawBufferId].objectId;
       }
     });
     textBox.draggable({
@@ -1193,11 +1200,14 @@ const whiteboard = {
       .click(function (e) {
         $("#" + txId).remove();
         // good
-        _this.sendFunction(MessageType.DELETE, {
-          messageId: MessageHelper.generateId(),
-          userId: _this.settings.userId,
-          objectId: _this.drawBuffer[drawBufferId].objectId,
-        });
+        if (_this.selectedObject === _this.drawBuffer[drawBufferId].objectId) {
+          _this.selectedObject = "";
+          _this.sendFunction(MessageType.DELETE, {
+            messageId: MessageHelper.generateId(),
+            userId: _this.settings.userId,
+            objectId: _this.drawBuffer[drawBufferId].objectId,
+          });
+        }
         e.preventDefault();
         return false;
       });
@@ -1211,6 +1221,7 @@ const whiteboard = {
     }
 
     _this.setTextboxText(txId, textLabel);
+    _this.drawBufferId++;
 
     // render newly added icons
     dom.i2svg();
@@ -1793,14 +1804,13 @@ const whiteboard = {
     ) {
       _this.drawBuffer.push(content);
     }
-    if (content.boardObject !== undefined && content.boardObject.isLocked) {
-      if (_this.selectedObject !== "") {
-        _this.settings.sendFunction(MessageType.UNSELECT, {
-          messageId: MessageHelper.generateId(),
-          userId: _this.settings.userId,
-          objectId: _this.selectedObject,
-        });
-      }
+    if (_this.selectedObject !== "") {
+      _this.settings.sendFunction(MessageType.UNSELECT, {
+        messageId: MessageHelper.generateId(),
+        userId: _this.settings.userId,
+        objectId: _this.selectedObject,
+      });
+      _this.selectedObject = "";
     }
   },
   refreshCursorAppearance() {

@@ -29,13 +29,19 @@ let userId = null;
 let drawBufferIndex = 0;
 
 function main() {
-  socketjs = new WebSocket("ws://localhost:44567");
+  // socketjs = new WebSocket("ws://192.168.1.100:44567");
   // socketjs = new WebSocket("ws://16.16.43.155:44567");
+  socketjs = new WebSocket("ws://localhost:44567");
 
   socketjs.addEventListener("open", function (event) {
     console.log("Websocket connected!");
     initConnection();
     initWhiteboard();
+  });
+
+  socketjs.addEventListener("close", function (event) {
+    initConnection();
+    showBasicAlert("Connection to the server lost");
   });
 
   socketjs.addEventListener("message", function (event) {
@@ -98,9 +104,8 @@ function main() {
         break;
       case MessageType.OBJECT_CREATED:
         content = response;
-        if (whiteboard.selectedObject === "") {
-          whiteboard.selectedObject = response.message.objectId;
-        }
+        whiteboard.selectedObject = response.message.objectId;
+        console.log(whiteboard.selectedObject);
         whiteboard.drawBuffer[whiteboard.drawBuffer.length - 1].objectId =
           response.message.objectId;
         break;
@@ -130,7 +135,6 @@ function main() {
         // TODO something ??
         break;
       case MessageType.OBJECT_UNSELECTED:
-        whiteboard.selectedObject = "";
         break;
       case MessageType.OBJECT_DELETED:
         console.log(content);
@@ -142,6 +146,25 @@ function main() {
         break;
       case MessageType.OBJECT_SELECTED:
         break;
+      case MessageType.USER_BROADCAST:
+        showBasicAlert(response.message.pseudo + " joined the meeting", {
+          headercolor: "#1ba2cb",
+          hideAfter: true,
+        });
+        break;
+      case MessageType.HOST_BROADCAST:
+        showBasicAlert(
+          response.message.pseudo + " is now the host of the meeting",
+          {
+            headercolor: "#dea20e",
+            hideAfter: false,
+          }
+        );
+      case MessageType.USER_LEFT_BROADCAST:
+        showBasicAlert(response.message.pseudo + " left the meeting", {
+          headercolor: "#1ba2cb",
+          hideAfter: true,
+        });
       default:
         if (response.message.code.toString().split("")[0] === "4") {
           showBasicAlert(
@@ -156,17 +179,14 @@ function main() {
 
   // when user disconnect suddenly (aka close the tab or browser)
   window.addEventListener("beforeunload", function (e) {
-    socketjs.close();
+    socketjs.send(
+      StringifyHelper.stringify(MessageType.LEAVE_MEETING, {
+        messageId: MessageHelper.generateId(),
+        userId: userId,
+        meetingId: meetingId,
+      })
+    );
   });
-
-  //TODO if user click on leave meeting button
-  /*socketjs.send(
-    StringifyHelper.stringify(MessageType.LEAVE_MEETING, {
-      messageId: MessageHelper.generateId(),
-      userId: userId,
-      meetingId: meetingId,
-    })
-  );*/
 
   /*socket.on("something", function () {
 
@@ -255,7 +275,7 @@ function showBasicAlert(html, newOptions) {
   if (options.hideAfter) {
     setTimeout(function () {
       alertHtml.find(".okbtn").click();
-    }, 1000 * options.hideAfter);
+    }, 3000 * options.hideAfter);
   }
 }
 
@@ -473,6 +493,7 @@ function initWhiteboard() {
                 objectId: whiteboard.selectedObject,
               })
             );
+            whiteboard.selectedObject = "";
           }
         } else {
           $(".activeToolIcon").html($(this).html()); //Set Active icon the same as the button icon
