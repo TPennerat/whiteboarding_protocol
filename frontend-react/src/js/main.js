@@ -109,7 +109,15 @@ function main() {
 
         // Appel recopie
         var content = response;
-        whiteboard.handleEventsAndData(content, true);
+        console.log(content);
+
+        if (content.message.boardObject.hasOwnProperty("stringImage")) {
+          whiteboard.addImgToCanvasByUrl(
+            content.message.boardObject.stringImage
+          );
+        } else {
+          whiteboard.handleEventsAndData(content, true);
+        }
 
         whiteboard.drawBuffer[drawBufferIndex].objectId =
           response.message.objectId;
@@ -125,6 +133,12 @@ function main() {
         whiteboard.selectedObject = "";
         break;
       case MessageType.OBJECT_DELETED:
+        console.log(content);
+        // whiteboard.handleEventsAndData(content, true);
+        break;
+      case MessageType.DELETE_BROADCAST:
+        // objectId
+        whiteboard.removeTextbox(response.message.objectId);
         break;
       case MessageType.OBJECT_SELECTED:
         break;

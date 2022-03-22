@@ -518,7 +518,8 @@ const whiteboard = {
         txId,
         isStickyNote,
         true,
-        _this.drawBufferId
+        _this.drawBufferId,
+        ""
       );
     });
   },
@@ -1039,13 +1040,18 @@ const whiteboard = {
     txId,
     isStickyNote,
     newLocalBox,
-    drawBufferId
+    drawBufferId,
+    textLabel
   ) {
     var _this = this;
     var cssclass = "textBox";
     if (isStickyNote) {
       cssclass += " stickyNote";
     }
+
+    console.log("textLabel : ");
+    console.log(textLabel);
+
     var textBox = $(
       '<div id="' +
         txId +
@@ -1063,7 +1069,9 @@ const whiteboard = {
         fontsize +
         "em; color:" +
         textcolor +
-        '; min-width:50px; min-height:100%;"></div>' +
+        '; min-width:50px; min-height:100%;" id="txtLabel' +
+        txId +
+        '"></div>' +
         '<div title="remove textbox" class="removeIcon" style="position:absolute; cursor:pointer; top:-3px; right:2px;"><b>🗑</b></div>' +
         '<div title="move textbox" class="moveIcon" style="position:absolute; cursor:move; top:1px; left:2px; font-size: 0.5em;"><i class="fas fa-expand-arrows-alt"></i></div>' +
         "</div>"
@@ -1098,7 +1106,17 @@ const whiteboard = {
         });
       });*/
     });
-    this.textContainer.append(textBox);
+
+    // On change
+    if ($("#" + txId).length) {
+      console.log("Already exist");
+      // $("#txtLabel"+txId).html(text)
+      $("#" + txId).css("top", top);
+      $("#" + txId).css("left", left);
+    } else {
+      this.textContainer.append(textBox);
+    }
+
     textBox.find(".textContent").on("click", function (ev) {
       if (_this.selectedObject !== "") {
         if (_this.selectedObject !== _this.drawBuffer[drawBufferId].objectId) {
@@ -1130,8 +1148,8 @@ const whiteboard = {
           change: {
             changeId: _this.changeId,
             newPosition: {
-              x: textBoxPosition.top,
-              y: textBoxPosition.left,
+              x: textBoxPosition.left,
+              y: textBoxPosition.top,
             },
           },
         });
@@ -1184,7 +1202,6 @@ const whiteboard = {
         return false;
       });
     if (newLocalBox) {
-      //per https://stackoverflow.com/questions/2388164/set-focus-on-div-contenteditable-element
       setTimeout(() => {
         textBox.find(".textContent").focus();
       }, 0);
@@ -1193,13 +1210,20 @@ const whiteboard = {
       textBox.addClass("active");
     }
 
+    _this.setTextboxText(txId, textLabel);
+
     // render newly added icons
     dom.i2svg();
   },
   setTextboxText(txId, text) {
+    console.log("changeTxtBox");
+    console.log(text);
+    console.log($("#" + txId));
+    console.log($("#" + txId).find(".textContent"));
+
     $("#" + txId)
       .find(".textContent")
-      .html(decodeURIComponent(escape(atob(text)))); //Set decoded base64 as html
+      .html(text); //Set decoded base64 as html
   },
   removeTextbox(txId) {
     $("#" + txId).remove();
@@ -1419,12 +1443,12 @@ const whiteboard = {
     var data = [
       _this.drawcolor,
       _this.textboxBackgroundColor,
-      "15",
+      "1",
       boardObject.coordinates.x,
       boardObject.coordinates.y,
-      "fdfdfdf",
+      boardObject.objectId,
       true,
-      false,
+      boardObject.text,
     ];
 
     content = {
@@ -1496,6 +1520,9 @@ const whiteboard = {
           );
         }
       } else if (tool === "addTextBox") {
+        console.log("data");
+        console.log(data);
+
         _this.addTextBox(
           data[0],
           data[1],
@@ -1503,9 +1530,26 @@ const whiteboard = {
           data[3],
           data[4],
           data[5],
-          data[6]
+          data[6],
+          null,
+          null,
+          data[7]
         );
-        _this.setTextboxText(boardObject.objectId, boardObject.text);
+
+        // addTextBox(
+        //   textcolor,
+        //   textboxBackgroundColor,
+        //   fontsize,
+        //   left,
+        //   top,
+        //   txId,
+        //   isStickyNote,
+        //   newLocalBox,
+        //   drawBufferId,
+        //   textLabel
+        // )
+
+        // _this.setTextboxText(boardObject.objectId, boardObject.text);
       } else if (tool === "setTextboxText") {
         _this.setTextboxText(data[0], data[1]);
       } else if (tool === "removeTextbox") {
