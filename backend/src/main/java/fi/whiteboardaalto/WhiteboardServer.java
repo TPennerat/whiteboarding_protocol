@@ -385,7 +385,7 @@ public class WhiteboardServer extends WebSocketServer {
 
     @Override
     public void onStart() {
-        ConsoleLogger.loggConsole("### TAT.IO - v0.2 ###", Colour.WHITE);
+            ConsoleLogger.loggConsole("### TAT.IO - v0.2 ###", Colour.WHITE);
         ConsoleLogger.loggConsole("[i] Starting the server on port " + getPort() + "...", Colour.WHITE);
     }
 
