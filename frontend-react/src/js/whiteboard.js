@@ -1157,19 +1157,9 @@ const whiteboard = {
     });
     textBox.find(".textContent").on("input", function () {
       var text = $(this).html();
-      console.log({
-        messageId: MessageHelper.generateId(),
-        userId: _this.settings.userId,
-        objectId: _this.drawBuffer[drawBufferId].objectId,
-        editType: MessageType.TEXT_CHANGE,
-        change: {
-          changeId: _this.changeId,
-          newText: text,
-        },
-      });
       _this.sendFunction(MessageType.EDIT, {
         messageId: MessageHelper.generateId(),
-        userId: _this.userId,
+        userId: _this.settings.userId,
         objectId: _this.drawBuffer[drawBufferId].objectId,
         editType: MessageType.TEXT_CHANGE,
         change: {
