@@ -1099,23 +1099,29 @@ const whiteboard = {
       });*/
     });
     this.textContainer.append(textBox);
-    textBox.find(".textContent").on("click", function (ev) {
+    textBox.on("click", function (ev) {
       if (_this.selectedObject !== "") {
         if (_this.selectedObject !== _this.drawBuffer[drawBufferId].objectId) {
+          const tmp = _this.selectedObject;
+          _this.selectedObject = "";
           _this.sendFunction(MessageType.UNSELECT, {
             messageId: MessageHelper.generateId(),
             userId: _this.settings.userId,
-            objectId: _this.selectedObject,
+            objectId: tmp,
           });
+          _this.sendFunction(MessageType.SELECT, {
+            messageId: MessageHelper.generateId(),
+            userId: _this.settings.userId,
+            objectId: _this.drawBuffer[drawBufferId].objectId,
+          });
+          _this.selectedObject = _this.drawBuffer[drawBufferId].objectId;
         }
       } else {
-        console.log(_this.drawBuffer[drawBufferId]);
         _this.sendFunction(MessageType.SELECT, {
           messageId: MessageHelper.generateId(),
           userId: _this.settings.userId,
           objectId: _this.drawBuffer[drawBufferId].objectId,
         });
-        _this.selectedId = _this.drawBuffer[drawBufferId].objectId;
       }
     });
     textBox.draggable({
@@ -1175,11 +1181,14 @@ const whiteboard = {
       .click(function (e) {
         $("#" + txId).remove();
         // good
-        _this.sendFunction(MessageType.DELETE, {
-          messageId: MessageHelper.generateId(),
-          userId: _this.settings.userId,
-          objectId: _this.drawBuffer[drawBufferId].objectId,
-        });
+        if (_this.selectedObject === _this.drawBuffer[drawBufferId].objectId) {
+          _this.selectedObject = "";
+          _this.sendFunction(MessageType.DELETE, {
+            messageId: MessageHelper.generateId(),
+            userId: _this.settings.userId,
+            objectId: _this.drawBuffer[drawBufferId].objectId,
+          });
+        }
         e.preventDefault();
         return false;
       });
@@ -1193,13 +1202,15 @@ const whiteboard = {
       textBox.addClass("active");
     }
 
+    _this.drawBufferId++;
+
     // render newly added icons
     dom.i2svg();
   },
   setTextboxText(txId, text) {
     $("#" + txId)
       .find(".textContent")
-      .html(decodeURIComponent(escape(atob(text)))); //Set decoded base64 as html
+      .html(text); //Set decoded base64 as html
   },
   removeTextbox(txId) {
     $("#" + txId).remove();
@@ -1749,14 +1760,13 @@ const whiteboard = {
     ) {
       _this.drawBuffer.push(content);
     }
-    if (content.boardObject !== undefined && content.boardObject.isLocked) {
-      if (_this.selectedObject !== "") {
-        _this.settings.sendFunction(MessageType.UNSELECT, {
-          messageId: MessageHelper.generateId(),
-          userId: _this.settings.userId,
-          objectId: _this.selectedObject,
-        });
-      }
+    if (_this.selectedObject !== "") {
+      _this.settings.sendFunction(MessageType.UNSELECT, {
+        messageId: MessageHelper.generateId(),
+        userId: _this.settings.userId,
+        objectId: _this.selectedObject,
+      });
+      _this.selectedObject = "";
     }
   },
   refreshCursorAppearance() {
