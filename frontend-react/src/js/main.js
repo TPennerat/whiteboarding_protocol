@@ -29,7 +29,7 @@ let userId = null;
 let drawBufferIndex = 0;
 
 function main() {
-  socketjs = new WebSocket("ws://16.16.43.155:44567");
+  socketjs = new WebSocket("ws://localhost:44567");
 
   socketjs.addEventListener("open", function (event) {
     console.log("Websocket connected!");
@@ -752,6 +752,7 @@ function initWhiteboard() {
     $("#whiteboardContainer").on("drop", function (e) {
       //Handle drop
       if (ReadOnlyService.readOnlyActive) return;
+      console.log("e");
 
       if (e.originalEvent.dataTransfer) {
         if (e.originalEvent.dataTransfer.files.length) {
@@ -1065,6 +1066,7 @@ function initWhiteboard() {
 
   //TODO need to see this
   function uploadImgAndAddToWhiteboard(base64data, filename) {
+    console.log(filename);
     const date = +new Date();
     socketjs.send(
       StringifyHelper.stringify(MessageType.CREATE_OBJECT, {
