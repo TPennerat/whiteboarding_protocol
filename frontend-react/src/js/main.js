@@ -97,8 +97,9 @@ function main() {
 
         for (var k in jsonData) {
           var counter = jsonData[k];
-          console.log(counter);
-          //   whiteboard.handleEventsAndData(counter, true);
+          // console.log(counter.boardObject);
+          whiteboard.handleEventsAndData(counter, true);
+          // whiteboard.addTextBox()
         }
         // whiteboard.loadData(response);
         break;
