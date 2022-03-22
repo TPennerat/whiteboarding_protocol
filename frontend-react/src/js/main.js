@@ -30,6 +30,7 @@ let drawBufferIndex = 0;
 
 function main() {
   socketjs = new WebSocket("ws://16.16.43.155:44567");
+  // socketjs = new WebSocket("ws://16.16.43.155:44567");
 
   socketjs.addEventListener("open", function (event) {
     console.log("Websocket connected!");
