@@ -61,12 +61,13 @@ public class WhiteboardServer extends WebSocketServer {
     @Override
     public void onClose(WebSocket conn, int i, String s, boolean b) {
         User existingUser = users.get(conn);
-
         if(existingUser != null) {
             Meeting meeting = findMeetingByUserId(existingUser.getUserId());
             if(meeting.getUsers().contains(existingUser)) {
                 // If the user is a not a host, we simply remove it from the users set
                 meeting.getUsers().remove(existingUser);
+                UserLeftBroadcast userLeftBroadcast = new UserLeftBroadcast(messageIdGenerator(), existingUser.getPseudo());
+                broadcastMessageToOthers(userLeftBroadcast, conn, MessageType.USER_LEFT_BROADCAST);
             } else if (meeting.getHost() == existingUser) {
                 // If the host is the last one in the meeting
                 if(meeting.getTotalUsers() == 1) {
@@ -307,12 +308,16 @@ public class WhiteboardServer extends WebSocketServer {
                 existingUser = users.get(conn);
                 meeting = findMeetingByUserId(existingUser.getUserId());
                 boardObject = meeting.getWhiteboard().getBoardObjectByObjectId(editObject.getObjectId());
-                // We need to check first if the object is selected by the user already
+                // If the object is null, we send an error and then we break
+                if(boardObject == null) {
+                    sendMessage(conn, new ObjectNotFoundError(editObject.getMessageId()+1), MessageType.OBJECT_NOT_FOUND_ERROR);
+                    break;
+                }
+                // We need to check also if the object is selected by the user already
                 if(!boardObject.getIsLocked() || !boardObject.getOwnerId().equals(editObject.getUserId())) {
                     sendMessage(conn, new ObjectNotOwnedError(editObject.getMessageId()+1), MessageType.OBJECT_NOT_OWNED_ERROR);
                     break;
                 }
-
                 String checksum;
                 // If we got here, it means that:
                 //      => The user is allowed to perform the action, as it owns the object.
@@ -380,7 +385,7 @@ public class WhiteboardServer extends WebSocketServer {
 
     @Override
     public void onStart() {
-        ConsoleLogger.loggConsole("### TAT.IO - v1.1 ###", Colour.WHITE);
+        ConsoleLogger.loggConsole("### TAT.IO - v0.2 ###", Colour.WHITE);
         ConsoleLogger.loggConsole("[i] Starting the server on port " + getPort() + "...", Colour.WHITE);
     }
 
