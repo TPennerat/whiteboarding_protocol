@@ -89,6 +89,38 @@ function main() {
         break;
       case MessageType.MEETING_JOINED:
         userId = response.message.userId;
+        ConfigService.initFromServer({
+          common: {
+            onWhiteboardLoad: {
+              setReadOnly: false,
+              displayInfo: false,
+            },
+            showSmallestScreenIndicator: true,
+            imageDownloadFormat: "png",
+            imageURL: "",
+            drawBackgroundGrid: false,
+            backgroundGridImage: "bg_grid.png",
+            performance: {
+              refreshInfoFreq: 5,
+              pointerEventsThrottling: [
+                {
+                  fromUserCount: 0,
+                  minDistDelta: 1,
+                  maxFreq: 30,
+                },
+                {
+                  fromUserCount: 10,
+                  minDistDelta: 5,
+                  maxFreq: 10,
+                },
+              ],
+            },
+          },
+          whiteboardSpecific: {
+            correspondingReadOnlyWid: "737e8b72-0e15-4075-9dd5-9cb4c09909b0",
+            isReadOnly: false,
+          },
+        });
         initWhiteboard();
         break;
       case MessageType.BOARD_UPDATE:
