@@ -359,7 +359,7 @@ function initWhiteboard() {
     Object.entries(keybinds).forEach(([key, functionName]) => {
       const associatedShortcutFunction = shortcutFunctions[functionName];
       if (associatedShortcutFunction) {
-        keymage(key, associatedShortcutFunction, { preventDefault: true });
+        // keymage(key, associatedShortcutFunction, { preventDefault: true });
       } else {
         console.error(
           "Function you want to keybind on key:",
@@ -1171,42 +1171,40 @@ function initWhiteboard() {
 
   // handle pasting from clipboard
   window.addEventListener("paste", function (e) {
-    if ($(".basicalert").length > 0 || !!e.origin) {
-      return;
-    }
-    if (e.clipboardData) {
-      var items = e.clipboardData.items;
-      var imgItemFound = false;
-      if (items) {
-        // Loop through all items, looking for any kind of image
-        for (var i = 0; i < items.length; i++) {
-          if (items[i].type.indexOf("image") !== -1) {
-            imgItemFound = true;
-            // We need to represent the image as a file,
-            var blob = items[i].getAsFile();
-
-            var reader = new window.FileReader();
-            reader.readAsDataURL(blob);
-            reader.onloadend = function () {
-              console.log("Uploading image!");
-              let base64data = reader.result;
-              console.log(base64data);
-              uploadImgAndAddToWhiteboard(base64data);
-            };
-          }
-        }
-      }
-
-      if (
-        !imgItemFound &&
-        whiteboard.tool != "text" &&
-        whiteboard.tool != "stickynote"
-      ) {
-        showBasicAlert(
-          "Please Drag&Drop the image or pdf into the Whiteboard. (Browsers don't allow copy+past from the filesystem directly)"
-        );
-      }
-    }
+    // if ($(".basicalert").length > 0 || !!e.origin) {
+    //   return;
+    // }
+    // if (e.clipboardData) {
+    //   var items = e.clipboardData.items;
+    //   var imgItemFound = false;
+    //   if (items) {
+    //     // Loop through all items, looking for any kind of image
+    //     for (var i = 0; i < items.length; i++) {
+    //       if (items[i].type.indexOf("image") !== -1) {
+    //         imgItemFound = true;
+    //         // We need to represent the image as a file,
+    //         var blob = items[i].getAsFile();
+    //         var reader = new window.FileReader();
+    //         reader.readAsDataURL(blob);
+    //         reader.onloadend = function () {
+    //           console.log("Uploading image!");
+    //           let base64data = reader.result;
+    //           console.log(base64data);
+    //           uploadImgAndAddToWhiteboard(base64data);
+    //         };
+    //       }
+    //     }
+    //   }
+    //   if (
+    //     !imgItemFound &&
+    //     whiteboard.tool != "text" &&
+    //     whiteboard.tool != "stickynote"
+    //   ) {
+    //     showBasicAlert(
+    //       "Please Drag&Drop the image or pdf into the Whiteboard. (Browsers don't allow copy+past from the filesystem directly)"
+    //     );
+    //   }
+    // }
   });
 }
 
