@@ -1200,6 +1200,7 @@ const whiteboard = {
       .click(function (e) {
         $("#" + txId).remove();
         // good
+        console.log(_this.drawBuffer[drawBufferId], _this.drawBuffer);
         if (_this.selectedObject === _this.drawBuffer[drawBufferId].objectId) {
           _this.selectedObject = "";
           _this.sendFunction(MessageType.DELETE, {
