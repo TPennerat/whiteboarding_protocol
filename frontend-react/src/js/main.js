@@ -764,6 +764,7 @@ function initWhiteboard() {
     $("#whiteboardContainer").on("drop", function (e) {
       //Handle drop
       if (ReadOnlyService.readOnlyActive) return;
+      console.log("e");
 
       if (e.originalEvent.dataTransfer) {
         if (e.originalEvent.dataTransfer.files.length) {
@@ -1077,6 +1078,7 @@ function initWhiteboard() {
 
   //TODO need to see this
   function uploadImgAndAddToWhiteboard(base64data, filename) {
+    console.log(filename);
     const date = +new Date();
     socketjs.send(
       StringifyHelper.stringify(MessageType.CREATE_OBJECT, {
