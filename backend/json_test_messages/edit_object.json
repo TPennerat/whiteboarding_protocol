@@ -1,0 +1,10 @@
+{
+  "messageType": "EDIT",
+  "message": {
+    "messageId": 123456,
+    "userId": "abcdefgh",
+    "objectId": "cbE4",
+    "editType": "POSITION_CHANGE",
+    "change": { "changeId": 123456, "newPosition": { "x": 5, "y": 6 } }
+  }
+}
