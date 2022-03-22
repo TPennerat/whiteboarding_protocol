@@ -29,7 +29,7 @@ let userId = null;
 let drawBufferIndex = 0;
 
 function main() {
-  socketjs = new WebSocket("ws://16.16.43.155:44567");
+  socketjs = new WebSocket("ws://localhost:44567");
   // socketjs = new WebSocket("ws://16.16.43.155:44567");
 
   socketjs.addEventListener("open", function (event) {
@@ -86,7 +86,15 @@ function main() {
         initWhiteboard();
         break;
       case MessageType.BOARD_UPDATE:
-        whiteboard.loadData(response);
+        // Appel recopie
+        var jsonData = response.message.boardUpdateComponents;
+
+        for (var k in jsonData) {
+          var counter = jsonData[k];
+          console.log(counter);
+          //   whiteboard.handleEventsAndData(counter, true);
+        }
+        // whiteboard.loadData(response);
         break;
       case MessageType.OBJECT_CREATED:
         content = response;
@@ -98,8 +106,11 @@ function main() {
         break;
       case MessageType.CHANGE_BROADCAST:
         console.log("CHANGE_BROADCAST v1");
+
+        // Appel recopie
         var content = response;
         whiteboard.handleEventsAndData(content, true);
+
         whiteboard.drawBuffer[drawBufferIndex].objectId =
           response.message.objectId;
         whiteboard.drawBuffer[drawBufferIndex].boardObject.objectId =

@@ -1415,8 +1415,6 @@ const whiteboard = {
     // var tool = content["t"];
     // console.log(content);
     var boardObject = content.message.boardObject;
-    // console.log(boardObject);
-
     // MIDDLEWARE
     var data = [
       _this.drawcolor,
