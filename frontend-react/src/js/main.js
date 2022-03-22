@@ -106,7 +106,6 @@ function main() {
       case MessageType.OBJECT_CREATED:
         content = response;
         whiteboard.selectedObject = response.message.objectId;
-        console.log(whiteboard.selectedObject);
         whiteboard.drawBuffer[whiteboard.drawBuffer.length - 1].objectId =
           response.message.objectId;
         break;
@@ -800,7 +799,6 @@ function initWhiteboard() {
     $("#whiteboardContainer").on("drop", function (e) {
       //Handle drop
       if (ReadOnlyService.readOnlyActive) return;
-      console.log("e");
 
       if (e.originalEvent.dataTransfer) {
         if (e.originalEvent.dataTransfer.files.length) {
@@ -1114,8 +1112,6 @@ function initWhiteboard() {
 
   //TODO need to see this
   function uploadImgAndAddToWhiteboard(base64data, filename) {
-    console.log(filename);
-    const date = +new Date();
     socketjs.send(
       StringifyHelper.stringify(MessageType.CREATE_OBJECT, {
         messageId: MessageHelper.generateId(),

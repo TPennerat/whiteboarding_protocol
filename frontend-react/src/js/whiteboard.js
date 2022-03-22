@@ -1120,6 +1120,10 @@ const whiteboard = {
     // textBox.find(".textContent").on("click", function (ev) {
     textBox.on("click", function (ev) {
       if (_this.selectedObject !== "") {
+        console.log(
+          _this.selectedObject,
+          _this.drawBuffer[drawBufferId].objectId
+        );
         if (_this.selectedObject !== _this.drawBuffer[drawBufferId].objectId) {
           const tmp = _this.selectedObject;
           _this.selectedObject = "";
