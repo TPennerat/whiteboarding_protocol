@@ -1462,8 +1462,8 @@ const whiteboard = {
       var boardObject = content.boardObject;
     }
 
-    console.log(content);
-    console.log(boardObject);
+    // console.log(content);
+    // console.log(boardObject);
 
     // MIDDLEWARE
     var data = [

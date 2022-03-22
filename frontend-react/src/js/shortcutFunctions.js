@@ -49,10 +49,10 @@ const shortcutFunctions = {
     whiteboard.redrawMouseCursor();
   }),
   openColorPicker: defineShortcut(() => $("#whiteboardColorpicker").click()),
-  saveWhiteboardAsImage: defineShortcut(
-    () => $("#saveAsImageBtn").click(),
-    false
-  ),
+  saveWhiteboardAsImage: defineShortcut(() => {
+    // alert("test");
+    $("#saveAsImageBtn").click();
+  }, false),
   saveWhiteboardAsJson: defineShortcut(
     () => $("#saveAsJSONBtn").click(),
     false
