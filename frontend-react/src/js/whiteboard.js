@@ -1450,7 +1450,17 @@ const whiteboard = {
     var _this = this;
     // var tool = content["t"];
     // console.log(content);
-    var boardObject = content.message.boardObject;
+    // if(conten)
+    if (content.hasOwnProperty("message")) {
+      var boardObject = content.message.boardObject;
+    } else {
+      // Pour le board update
+      var boardObject = content.boardObject;
+    }
+
+    console.log(content);
+    console.log(boardObject);
+
     // MIDDLEWARE
     var data = [
       _this.drawcolor,
