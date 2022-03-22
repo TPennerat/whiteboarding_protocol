@@ -12,6 +12,7 @@ import fi.whiteboardaalto.messages.client.object.*;
 import fi.whiteboardaalto.messages.client.object.change.ColourChange;
 import fi.whiteboardaalto.messages.client.object.change.CommentChange;
 import fi.whiteboardaalto.messages.client.object.change.PositionChange;
+import fi.whiteboardaalto.messages.client.object.change.TextChange;
 import fi.whiteboardaalto.messages.client.session.CreateMeeting;
 import fi.whiteboardaalto.messages.client.session.JoinMeeting;
 import fi.whiteboardaalto.messages.client.session.LeaveMeeting;
@@ -20,6 +21,7 @@ import fi.whiteboardaalto.messages.server.ack.session.MeetingCreated;
 import fi.whiteboardaalto.messages.server.ack.session.MeetingJoined;
 import fi.whiteboardaalto.messages.server.ack.session.MeetingLeft;
 import fi.whiteboardaalto.messages.server.errors.*;
+import fi.whiteboardaalto.messages.server.errors.Error;
 import fi.whiteboardaalto.messages.server.update.*;
 import fi.whiteboardaalto.objects.*;
 import org.java_websocket.WebSocket;
@@ -27,8 +29,8 @@ import org.java_websocket.handshake.ClientHandshake;
 import org.java_websocket.server.WebSocketServer;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.w3c.dom.Text;
 
-import javax.swing.text.Style;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
@@ -59,12 +61,13 @@ public class WhiteboardServer extends WebSocketServer {
     @Override
     public void onClose(WebSocket conn, int i, String s, boolean b) {
         User existingUser = users.get(conn);
-
         if(existingUser != null) {
             Meeting meeting = findMeetingByUserId(existingUser.getUserId());
             if(meeting.getUsers().contains(existingUser)) {
                 // If the user is a not a host, we simply remove it from the users set
                 meeting.getUsers().remove(existingUser);
+                UserLeftBroadcast userLeftBroadcast = new UserLeftBroadcast(messageIdGenerator(), existingUser.getPseudo());
+                broadcastMessageToOthers(userLeftBroadcast, conn, MessageType.USER_LEFT_BROADCAST);
             } else if (meeting.getHost() == existingUser) {
                 // If the host is the last one in the meeting
                 if(meeting.getTotalUsers() == 1) {
@@ -74,6 +77,9 @@ public class WhiteboardServer extends WebSocketServer {
                 } else {
                     // If the host is not the last one, then we simply elect another host
                     meeting.transferHost();
+                    // We update everyone (including the host) that there is a new host
+                    HostBroadcast hostBroadcast = new HostBroadcast(messageIdGenerator(), meeting.getHost().getPseudo());
+                    broadcastMessageToAll(hostBroadcast, meeting, MessageType.HOST_BROADCAST);
                 }
             }
         }
@@ -156,7 +162,7 @@ public class WhiteboardServer extends WebSocketServer {
                             sendMessage(conn, boardUpdate, MessageType.BOARD_UPDATE);
                             // Broadcasting the new user to the existing users
                             UserBroadcast userBroadcast = new UserBroadcast(messageIdGenerator(), newUser.getPseudo());
-                            broadcastMessage(userBroadcast, conn, MessageType.USER_BROADCAST);
+                            broadcastMessageToOthers(userBroadcast, conn, MessageType.USER_BROADCAST);
                             ConsoleLogger.loggConsole(toString(), Colour.DEFAULT);
                         } else sendMessage(conn, new BusyPseudoError(joinMeeting.getMessageId()+1), MessageType.BUSY_PSEUDO_ERROR);
                     } else sendMessage(conn, new AlreadyInMeetingError(joinMeeting.getMessageId()+1), MessageType.ALREADY_IN_MEETING_ERROR);
@@ -164,13 +170,33 @@ public class WhiteboardServer extends WebSocketServer {
                 break;
             case LEAVE_MEETING:
                 /*
-                    If the client sends a LeaveMeeting message and don't wait for the answer to close the socket,
+                    If the client sends a LeaveMeeting message and doesn't wait for the answer to close the socket,
                     a Runtime error is thrown as the connection doesn't exist anymore.
                     => FIX?
                  */
+                // Checking if the user is authenticated
                 LeaveMeeting leaveMeeting = (LeaveMeeting) superMessage.getMessage();
                 if(!isUserAuth(leaveMeeting.getUserId(), conn)) {
                     sendMessage(conn, new UserNotAuthError(leaveMeeting.getMessageId()+1), MessageType.USER_NOT_AUTH_ERROR);
+                    break;
+                }
+                // Meeting indicated in the message
+                meeting = findMeetingByMeetingId(leaveMeeting.getMeetingId());
+                // Meeting in which the user is
+                Meeting meetingFromUser = findMeetingByUserId(users.get(conn).getUserId());
+                // Checking if the meetingID is valid (right length)
+                if(!(leaveMeeting.getMeetingId().length() == 16)) {
+                    sendMessage(conn, new MessageMalformedError(leaveMeeting.getMessageId()+1), MessageType.MESSAGE_MALFORMED_ERROR);
+                    break;
+                }
+                // Checking if the meeting exists
+                if(meeting == null) {
+                    sendMessage(conn, new NonExistentMeetingError(leaveMeeting.getMessageId()+1), MessageType.NON_EXISTING_MEETING_ERROR);
+                    break;
+                }
+                // Checking if the meeting provided by the user is the right one
+                if(!meeting.getMeetingId().equals(meetingFromUser.getMeetingId())) {
+                    sendMessage(conn, new UserNotInMeetingError(leaveMeeting.getMessageId()+1), MessageType.USER_NOT_IN_MEETING_ERROR);
                     break;
                 }
                 String pseudo = users.get(conn).getPseudo();
@@ -186,7 +212,7 @@ public class WhiteboardServer extends WebSocketServer {
                 ConsoleLogger.loggConsole("[-] " + pseudo + " left the following meeting: " + leaveMeeting.getMeetingId(), Colour.YELLOW);
                 // Broadcasting that the user has left
                 UserLeftBroadcast userLeftBroadcast = new UserLeftBroadcast(messageIdGenerator(), pseudo);
-                broadcastMessage(userLeftBroadcast, conn, MessageType.USER_LEFT_BROADCAST);
+                broadcastMessageToOthers(userLeftBroadcast, conn, MessageType.USER_LEFT_BROADCAST);
                 ConsoleLogger.loggConsole(toString(), Colour.DEFAULT);
                 break;
             case SELECT:
@@ -207,9 +233,10 @@ public class WhiteboardServer extends WebSocketServer {
                         String checksum = generateSha256Hash(objectSerialize(boardObject));
                         ObjectSelected objectSelected = new ObjectSelected(selectObject.getMessageId()+1, checksum);
                         sendMessage(conn, objectSelected, MessageType.OBJECT_SELECTED);
+                        ConsoleLogger.loggConsole("[i] The boardObject " + boardObject.getObjectId() + " has been selected by " + existingUser.getPseudo(), Colour.WHITE);
                         // Broadcasting the object with the new modifications
                         ChangeBroadcast changeBroadcast = new ChangeBroadcast(selectObject.getMessageId()+1, boardObject);
-                        broadcastMessage(changeBroadcast, conn, MessageType.CHANGE_BROADCAST);
+                        broadcastMessageToOthers(changeBroadcast, conn, MessageType.CHANGE_BROADCAST);
                     } else sendMessage(conn, new BusyObjectError(selectObject.getMessageId()+1), MessageType.BUSY_OBJECT_ERROR);
                 } else sendMessage(conn, new ObjectNotFoundError(selectObject.getMessageId()+1), MessageType.OBJECT_NOT_FOUND_ERROR);
                 break;
@@ -228,14 +255,17 @@ public class WhiteboardServer extends WebSocketServer {
                         //  If the object's owner is the same as the sender of the request
                         if (boardObject.getOwnerId().equals(existingUser.getUserId())) {
                             // Changing the state of the object to unselected
-                            boardObject.setIsLocked(true);
+                            boardObject.setIsLocked(false);
+                            // Removing the owner
+                            boardObject.setOwnerId(null);
                             // Sending confirmation to the source
                             String checksum = generateSha256Hash(objectSerialize(boardObject));
                             ObjectUnselected objectUnselected = new ObjectUnselected(unselectObject.getMessageId() + 1, checksum);
                             sendMessage(conn, objectUnselected, MessageType.OBJECT_UNSELECTED);
+                            ConsoleLogger.loggConsole("[i] The boardObject " + boardObject.getObjectId() + " has been unselected by " + existingUser.getPseudo(), Colour.WHITE);
                             // Broadcasting the object with the new modifications
                             ChangeBroadcast changeBroadcast = new ChangeBroadcast(messageIdGenerator(), boardObject);
-                            broadcastMessage(changeBroadcast, conn, MessageType.CHANGE_BROADCAST);
+                            broadcastMessageToOthers(changeBroadcast, conn, MessageType.CHANGE_BROADCAST);
                         } else sendMessage(conn, new ObjectNotOwnedError(unselectObject.getMessageId() + 1), MessageType.OBJECT_NOT_OWNED_ERROR);
                     } else sendMessage(conn, new ObjectNotSelectedError(unselectObject.getMessageId()+1), MessageType.OBJECT_NOT_SELECTED_ERROR);
                 } else sendMessage(conn, new ObjectNotFoundError(unselectObject.getMessageId()+1), MessageType.OBJECT_NOT_FOUND_ERROR);
@@ -250,18 +280,23 @@ public class WhiteboardServer extends WebSocketServer {
                 meeting = findMeetingByUserId(existingUser.getUserId());
                 boardObject = meeting.getWhiteboard().getBoardObjectByObjectId(deleteObject.getObjectId());
                 if(boardObject != null) {
-                    if(!boardObject.getIsLocked()) {
-                        // The checksum here is the one of the object before deletion (only case where that happens)
-                        String checksum = generateSha256Hash(objectSerialize(boardObject));
-                        // Sending confirmation to the source
-                        meeting.getWhiteboard().getBoardObjects().remove(boardObject);
-                        ObjectDeleted objectDeleted = new ObjectDeleted(deleteObject.getMessageId()+1, checksum);
-                        sendMessage(conn, objectDeleted, MessageType.OBJECT_DELETED);
-                        // Broadcasting the object with the new modifications
-                        DeleteBroadcast deleteBroadcast = new DeleteBroadcast(messageIdGenerator(), deleteObject.getObjectId());
-                        broadcastMessage(deleteBroadcast, conn, MessageType.DELETE_BROADCAST);
-                        ConsoleLogger.loggConsole(toString(), Colour.DEFAULT);
-                    } else sendMessage(conn, new BusyObjectError(deleteObject.getMessageId()+1), MessageType.BUSY_OBJECT_ERROR);
+                    // We need to check if the object has been selected priorly
+                    if(boardObject.getIsLocked()) {
+                        // We also need to check if the owner is the same as the user ID from the request
+                        if(boardObject.getOwnerId().equals(existingUser.getUserId())) {
+                            // The checksum here is the one of the object before deletion (only case where that happens)
+                            String checksum = generateSha256Hash(objectSerialize(boardObject));
+                            // Sending confirmation to the source
+                            meeting.getWhiteboard().getBoardObjects().remove(boardObject);
+                            ObjectDeleted objectDeleted = new ObjectDeleted(deleteObject.getMessageId()+1, checksum);
+                            sendMessage(conn, objectDeleted, MessageType.OBJECT_DELETED);
+                            // Broadcasting the object with the new modifications
+                            DeleteBroadcast deleteBroadcast = new DeleteBroadcast(messageIdGenerator(), deleteObject.getObjectId());
+                            broadcastMessageToOthers(deleteBroadcast, conn, MessageType.DELETE_BROADCAST);
+                            ConsoleLogger.loggConsole("[i] The boardObject " + boardObject.getObjectId() + " has been deleted by " + existingUser.getPseudo() + ".", Colour.WHITE);
+                            ConsoleLogger.loggConsole(toString(), Colour.DEFAULT);
+                        } else sendMessage(conn, new ObjectNotOwnedError(deleteObject.getMessageId()+1), MessageType.OBJECT_NOT_OWNED_ERROR);
+                    } else sendMessage(conn, new ObjectNotSelectedError(deleteObject.getMessageId()+1), MessageType.OBJECT_NOT_SELECTED_ERROR);
                 } else sendMessage(conn, new ObjectNotFoundError(deleteObject.getMessageId()+1), MessageType.OBJECT_NOT_FOUND_ERROR);
                 break;
             case EDIT:
@@ -273,12 +308,16 @@ public class WhiteboardServer extends WebSocketServer {
                 existingUser = users.get(conn);
                 meeting = findMeetingByUserId(existingUser.getUserId());
                 boardObject = meeting.getWhiteboard().getBoardObjectByObjectId(editObject.getObjectId());
-                // We need to check first if the object is selected by the user already
+                // If the object is null, we send an error and then we break
+                if(boardObject == null) {
+                    sendMessage(conn, new ObjectNotFoundError(editObject.getMessageId()+1), MessageType.OBJECT_NOT_FOUND_ERROR);
+                    break;
+                }
+                // We need to check also if the object is selected by the user already
                 if(!boardObject.getIsLocked() || !boardObject.getOwnerId().equals(editObject.getUserId())) {
                     sendMessage(conn, new ObjectNotOwnedError(editObject.getMessageId()+1), MessageType.OBJECT_NOT_OWNED_ERROR);
                     break;
                 }
-
                 String checksum;
                 // If we got here, it means that:
                 //      => The user is allowed to perform the action, as it owns the object.
@@ -294,6 +333,7 @@ public class WhiteboardServer extends WebSocketServer {
                         checksum = generateSha256Hash(objectSerialize(boardObject));
                         PositionChanged positionChanged = new PositionChanged(editObject.getMessageId()+1, checksum);
                         sendMessage(conn, positionChanged, MessageType.POSITION_CHANGED);
+                        ConsoleLogger.loggConsole("[i] The boardObject " + boardObject.getObjectId() + " has been edited (position changed) by " + existingUser.getPseudo() + ".", Colour.WHITE);
                         break;
                     case COLOUR_CHANGE:
                         if(boardObject instanceof Image) {
@@ -305,6 +345,7 @@ public class WhiteboardServer extends WebSocketServer {
                         checksum = generateSha256Hash(objectSerialize(boardObject));
                         ColourChanged colourChanged = new ColourChanged(editObject.getMessageId()+1, checksum);
                         sendMessage(conn, colourChanged, MessageType.COLOR_CHANGED);
+                        ConsoleLogger.loggConsole("[i] The boardObject " + boardObject.getObjectId() + " has been edited (colour changed) by " + existingUser.getPseudo() + ".", Colour.WHITE);
                         break;
                     case COMMENT_CHANGE:
                         if(boardObject instanceof Drawing || boardObject instanceof StickyNote) {
@@ -317,10 +358,24 @@ public class WhiteboardServer extends WebSocketServer {
                         checksum = generateSha256Hash(objectSerialize(image));
                         CommentChanged commentChanged = new CommentChanged(editObject.getMessageId()+1, checksum);
                         sendMessage(conn, commentChanged, MessageType.COMMENT_CHANGED);
+                        ConsoleLogger.loggConsole("[i] The " + image.getClass().getSimpleName() + " " + boardObject.getObjectId() + " has been edited (comment changed) by " + existingUser.getPseudo() + ".", Colour.WHITE);
+                        break;
+                    case TEXT_CHANGE:
+                        if(boardObject instanceof Drawing || boardObject instanceof Image) {
+                            sendMessage(conn, new ChangeNotAllowedError(editObject.getMessageId()+1), MessageType.CHANGE_NOT_ALLOWED_ERROR);
+                            break;
+                        }
+                        TextChange textChange = (TextChange) editObject.getChange();
+                        StickyNote stickyNote = (StickyNote) boardObject;
+                        stickyNote.setText(textChange.getNewText());
+                        checksum = generateSha256Hash(objectSerialize(stickyNote));
+                        TextChanged textChanged = new TextChanged(editObject.getMessageId()+1, checksum);
+                        sendMessage(conn, textChanged, MessageType.TEXT_CHANGED);
+                        ConsoleLogger.loggConsole("[i] The " + stickyNote.getClass().getSimpleName() + " " + boardObject.getObjectId() + " has been edited (text changed) by " + existingUser.getPseudo() + ".", Colour.WHITE);
                         break;
                 }
                 ChangeBroadcast changeBroadcast = new ChangeBroadcast(messageIdGenerator(), boardObject);
-                broadcastMessage(changeBroadcast, conn, MessageType.CHANGE_BROADCAST);
+                broadcastMessageToOthers(changeBroadcast, conn, MessageType.CHANGE_BROADCAST);
                 break;
         }
     }
@@ -330,7 +385,8 @@ public class WhiteboardServer extends WebSocketServer {
 
     @Override
     public void onStart() {
-        ConsoleLogger.loggConsole("[i] Starting the server...", Colour.WHITE);
+            ConsoleLogger.loggConsole("### TAT.IO - v0.2 ###", Colour.WHITE);
+        ConsoleLogger.loggConsole("[i] Starting the server on port " + getPort() + "...", Colour.WHITE);
     }
 
     @Override
@@ -413,12 +469,12 @@ public class WhiteboardServer extends WebSocketServer {
             }
             ObjectCreated objectCreated = new ObjectCreated(messageIdAck, objectId, sha256hash);
             sendMessage(conn, objectCreated, MessageType.OBJECT_CREATED);
-            broadcastMessage(changeBroadcast, conn, MessageType.CHANGE_BROADCAST);
+            broadcastMessageToOthers(changeBroadcast, conn, MessageType.CHANGE_BROADCAST);
         } else { sendMessage(conn, new BusyCoordinatesError(messageIdAck), MessageType.BUSY_COORDINATES_ERROR); }
 
     }
 
-    private void broadcastMessage(Object object, WebSocket notToSendTo, MessageType messageType) {
+    private void broadcastMessageToOthers(Object object, WebSocket notToSendTo, MessageType messageType) {
         // Finding the meeting with all the users inside
         String userId = users.get(notToSendTo).getUserId();
         Meeting meeting = findMeetingByUserId(userId);
@@ -432,10 +488,19 @@ public class WhiteboardServer extends WebSocketServer {
         }
     }
 
+    private void broadcastMessageToAll(Object object, Meeting meeting, MessageType messageType) {
+        for (WebSocket webSocket : getAllSocketsFromMeeting(meeting)) {
+                sendMessage(webSocket, object, messageType);
+            }
+        }
+
     private Set<WebSocket> getAllSocketsFromMeeting(Meeting meeting) {
         Set<WebSocket> set = new HashSet<WebSocket>();
-        for(User userToAdd : meeting.getUsers()) {
-            for (Map.Entry<WebSocket, User> entry : users.entrySet()) {
+        for(Map.Entry<WebSocket, User> entry : users.entrySet()) {
+            if(Objects.equals(meeting.getHost(), entry.getValue())) {
+                set.add(entry.getKey());
+            }
+            for(User userToAdd : meeting.getUsers()) {
                 if (Objects.equals(userToAdd, entry.getValue()) || Objects.equals(meeting.getHost(), entry.getValue())) {
                     set.add(entry.getKey());
                 }
